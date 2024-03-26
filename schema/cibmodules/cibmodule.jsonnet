@@ -19,32 +19,8 @@ local types = {
     // to allow the relevant members of CIBModule to be configured by
     // Run Control
   
-    conf: s.record("Conf", [
-    
-            s.field("receiver_connection_timeout", self.uint8, 1000,
-	                doc="CIB Receiver Connection Timeout value (microseconds)"),
-	
-	        s.field("control_connection_port", self.uint8, 8991,
-	                doc="CIB Control Connection Port"),
-	
-	        s.field("ctb_hostname", self.string, "np04-cib-1",
-	                doc="CIB Hostname"),
-	
-	        s.field("calibration_stream_output", self.string, "",
-	                doc="CIB Calibration Stream Output Path"),
-	
-	        s.field("calibration_update", self.uint8, "5",
-	                doc="CIB Calibration Update Interval"),
-	
-	        s.field("run_trigger_output", self.string, "/nfs/sw/trigger/counters",
-	                doc="CIB Trigger Output Path"),
-	 
-	        s.field("board_config", self.board_config, self.board_config, doc="CIB board config"),
-	    
-                           ],
-                   doc="CIB DAQ Module Configuration"),
-    
-    receiver: s.record("Receiver",  [
+  
+     receiver: s.record("Receiver",  [
         s.field("rollover", self.uint8, 125000, doc="Packet rollover in timestamp clock cycles"),
         s.field("host", self.string, "localhost"),
         s.field("port", self.uint8, 8992),
@@ -74,6 +50,43 @@ local types = {
         s.field("triggers", self.boolean, true),
         s.field("lockout", self.string, "0x10"),
     ], doc="Calibration Interface Board Timing Configuration"),
+  
+  
+    misc: s.record("Misc",  [
+        s.field("timing", self.timing, self.timing),
+        s.field("standalone_enable", self.boolean, false, doc="Enable running in standalone mode, with a free running clock"),
+        s.field("trigger_stream_enable", self.boolean, false, doc="Enable storing a separate dump of all triggers received from the CIB"),
+        s.field("trigger_stream_output", self.string, "/nfs/sw/trigger/cib",doc="CIB Trigger Output Path"),
+        s.field("trigger_stream_update", self.uint8, "5",doc="CIB Trigger update interval"),
+    ], doc="Central Trigger Board Misc Configuration"),
+  
+  
+    cib: s.record("cib",  [
+        s.field("sockets", self.sockets, self.sockets),
+        s.field("misc", self.misc, self.misc),
+        ], doc="Calibration Interface Board Configuration Object"),
+  	
+  
+    board_config: s.record("Board_config",  [
+			s.field("cib", self.cib, self.cib),
+        ], doc="Calibration Interface Board Configuration Wrapper"),
+  
+    conf: s.record("Conf", [
+    
+            s.field("receiver_connection_timeout", self.uint8, 1000,
+	                doc="CIB Receiver Connection Timeout value (microseconds)"),
+	
+	        s.field("cib_control_port", self.uint8, 8991,
+	                doc="CIB Control Connection Port"),
+	
+	        s.field("cib_control_host", self.string, "np04-cib-1",
+	                doc="CIB Hostname"),
+	           	 
+	        s.field("board_config", self.board_config, self.board_config, doc="CIB board config"),
+	    
+                           ],
+                   doc="CIB DAQ Module Configuration"),
+    
 
 };
 

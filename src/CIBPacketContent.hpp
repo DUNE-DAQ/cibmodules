@@ -52,7 +52,7 @@ namespace dunedaq {
           } tcp_header;
 
           namespace word {
-            enum word_type {t_trigger=0x0,t_fdbk=0x1,t_chksum=0x4,t_ts=0x3};
+            enum word_type {t_trigger=0x0,t_fback=0x1,t_chksum=0x4,t_ts=0x3};
             ///
             /// -- payload
             ///

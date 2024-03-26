@@ -52,9 +52,8 @@ public:
    */
   explicit CIBModule(const std::string& name);
 
-  void init(const data_t&) override;
-
-  void get_info(opmonlib::InfoCollector&, int /*level*/) override;
+  //void init(const nlohmann::json& iniobj) override;
+  void init(const json& iniobj) override;
 
   /**
    * Disallow copy and move constructors and assignments
@@ -66,12 +65,7 @@ public:
 
   ~CIBModule() = default;
 
-  void init(const json& iniobj) override;
 
-  // NFB: What does this do?
-  static uint64_t MatchTriggerInput(const uint64_t trigger_ts, const std::pair<uint64_t,uint64_t> &prev_input, const std::pair<uint64_t,uint64_t> &prev_prev_input, bool hlt_matching) noexcept;
-  static bool IsTSWord( const content::word::word_t &w ) noexcept;
-  static bool IsTriggerWord( const content::word::word_t &w ) noexcept;
   bool ErrorState() const { return m_error_state.load() ; }
   void get_info(opmonlib::InfoCollector& ci, int level) override;
 
@@ -83,8 +77,10 @@ private:
   std::atomic<bool> m_is_configured;
 
   /*const */unsigned int m_receiver_port;
-  std::chrono::microseconds m_timeout;
-  std::atomic<unsigned int> m_n_TS_words;
+  std::chrono::microseconds m_receiver_timeout;
+
+
+
   std::atomic<bool> m_error_state;
 
   boost::asio::io_service m_control_ios;
@@ -93,8 +89,8 @@ private:
   boost::asio::ip::tcp::socket m_receiver_socket;
   boost::asio::ip::tcp::endpoint m_endpoint;
 
-  std::shared_ptr<dunedaq::hsilibs::HSIEventSender::raw_sender_ct> m_llt_hsi_data_sender;
-  std::shared_ptr<dunedaq::hsilibs::HSIEventSender::raw_sender_ct> m_hlt_hsi_data_sender;
+  std::shared_ptr<dunedaq::hsilibs::HSIEventSender::raw_sender_ct> m_cib_hsi_data_sender;
+//  std::shared_ptr<dunedaq::hsilibs::HSIEventSender::raw_sender_ct> m_hlt_hsi_data_sender;
 
 
   // Commands
@@ -121,38 +117,52 @@ private:
   template<typename T>
   bool read(T &obj);
 
+  //
+  //
   // members related to calibration stream
-
+  //
+  // this is a standalone output parallel to the DAQ
   void update_calibration_file();
   void init_calibration_file();
-  bool SetCalibrationStream( const std::string &prefix = "" );
+  bool set_calibration_stream( const std::string &prefix = "" );
 
-  bool m_has_calibration_stream = false;
+  bool m_calibration_stream_enable = false;
   std::string m_calibration_dir = "";
   std::string m_calibration_prefix = "";
   std::chrono::minutes m_calibration_file_interval;
   std::ofstream m_calibration_file;
   std::chrono::steady_clock::time_point m_last_calibration_file_update;
 
+
+  //
   // members related to run trigger report
+  //
+//  bool m_has_run_trigger_report = false;
+//  std::string m_run_trigger_dir = "";
+//  bool store_run_trigger_counters( unsigned int run_number, const std::string & prefix = "" ) const;
 
-  bool m_has_run_trigger_report = false;
-  std::string m_run_trigger_dir = "";
-  bool store_run_trigger_counters( unsigned int run_number, const std::string & prefix = "" ) const;
-
-
+  // counters per run
   std::atomic<unsigned long> m_run_gool_part_counter = 0;
+  std::atomic<unsigned long> m_run_packet_counter = 0;
   std::atomic<unsigned long> m_run_trigger_counter = 0;
+  std::atomic<unsigned long> m_run_timestamp_counter = 0;
+  // overall counters
+  std::atomic<unsigned int> m_num_TS_words;
+  std::atomic<unsigned int> m_num_TR_words;
 
-  // monitoring
 
+  //
+  //
+  // monitoring data/information
+  //
+  //
   std::deque<uint> m_buffer_counts; // NOLINT(build/unsigned)
   std::shared_mutex m_buffer_counts_mutex;
   void update_buffer_counts(uint new_count); // NOLINT(build/unsigned)
   double read_average_buffer_counts();
 
-  std::atomic<int> m_num_control_messages_sent;
-  std::atomic<int> m_num_control_responses_received;
+  std::atomic<int>      m_num_control_messages_sent;
+  std::atomic<int>      m_num_control_responses_received;
   std::atomic<uint64_t> m_last_readout_timestamp; // NOLINT(build/unsigned)
 
   // Commands CIBModule can receive
@@ -167,9 +177,9 @@ private:
   // To see an example of this value assignment, look at the implementation of 
   // do_conf in CIBModule.cpp
 
-  void do_conf(const data_t&);
+  //void do_conf(const data_t&);
 
-  int m_some_configured_value { std::numeric_limits<int>::max() }; // Intentionally-ridiculous value pre-configuration
+//  int m_some_configured_value { std::numeric_limits<int>::max() }; // Intentionally-ridiculous value pre-configuration
 
   // TO cibmodules DEVELOPERS: PLEASE DELETE THIS FOLLOWING COMMENT AFTER READING IT 
   // m_total_amount and m_amount_since_last_get_info_call are examples
@@ -179,8 +189,8 @@ private:
   // runs and whose value we'd like to keep track of during running;
   // obviously you'd want to replace this "in real life"
 
-  std::atomic<int64_t> m_total_amount {0};
-  std::atomic<int>     m_amount_since_last_get_info_call {0};
+//  std::atomic<int64_t> m_total_amount {0};
+//  std::atomic<int>     m_amount_since_last_get_info_call {0};
 
 
 };
