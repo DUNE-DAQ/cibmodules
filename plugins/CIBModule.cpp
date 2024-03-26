@@ -15,6 +15,7 @@
 #include "logging/Logging.hpp"
 #include "cibmodules/cibmodule/Nljs.hpp"
 #include "cibmodules/cibmoduleinfo/InfoNljs.hpp"
+#include "rcif/cmd/Nljs.hpp"
 
 #include <chrono>
 #include <string>
@@ -34,7 +35,8 @@ namespace dunedaq::cibmodules {
               : hsilibs::HSIEventSender(name)
                 , m_is_running(false)
                 , m_is_configured(false)
-                , m_n_TS_words(0)
+                , m_num_TS_words(0)
+                , m_num_TR_words(0)
                 , m_error_state(false)
                 , m_control_ios()
                 , m_receiver_ios()
@@ -87,7 +89,9 @@ namespace dunedaq::cibmodules {
     m_receiver_port = m_cfg.board_config.cib.sockets.receiver.port;
     m_receiver_timeout = std::chrono::microseconds( m_cfg.receiver_connection_timeout ) ;
 
-    TLOG_DEBUG(0) << get_name() << ": Board receiver network location " << m_cfg.board_config.cib.sockets.receiver.host << ':' << m_cfg.board_config.ctb.sockets.receiver.port << std::endl;
+    TLOG_DEBUG(0) << get_name() << ": Board receiver network location "
+        << m_cfg.board_config.cib.sockets.receiver.host << ':'
+        << m_cfg.board_config.cib.sockets.receiver.port << std::endl;
 
     // Initialise monitoring variables
     m_num_control_messages_sent = 0;
@@ -96,7 +100,8 @@ namespace dunedaq::cibmodules {
     // network connection to cib hardware control
     boost::asio::ip::tcp::resolver resolver( m_control_ios );
     // once again, these are obtained from the configuration
-    boost::asio::ip::tcp::resolver::query query(m_cfg.cib_control_host, std::to_string(m_cfg.cib_control_port) ) ; //"np04-ctb-1", 8991
+    boost::asio::ip::tcp::resolver::query query(m_cfg.cib_control_host,
+                                                std::to_string(m_cfg.cib_control_port) ) ; //"np04-ctb-1", 8991
     boost::asio::ip::tcp::resolver::iterator iter = resolver.resolve(query) ;
 
     m_endpoint = iter->endpoint();
@@ -109,7 +114,7 @@ namespace dunedaq::cibmodules {
     }
     catch (std::exception& e)
     {
-      TLOG_ERROR(9) << "Exeption caught while establishing connection to CIB : " << e.what();
+      TLOG() << "Exeption caught while establishing connection to CIB : " << e.what();
       // do nothing more. Just exist
       m_is_configured.store(false);
       return;
@@ -117,11 +122,11 @@ namespace dunedaq::cibmodules {
 
     // if necessary, set the calibration stream
     // the CIB calibration stream is something a bit different
-    if ( m_cfg.cib.misc.trigger_stream_enable)
+    if ( m_cfg.board_config.cib.misc.trigger_stream_enable)
     {
       m_calibration_stream_enable = true ;
-      m_calibration_dir = m_cfg.cib.misc.trigger_stream_output ;
-      m_calibration_file_interval = std::chrono::minutes(m_cfg.cib.misc.trigger_stream_update);
+      m_calibration_dir = m_cfg.board_config.cib.misc.trigger_stream_output ;
+      m_calibration_file_interval = std::chrono::minutes(m_cfg.board_config.cib.misc.trigger_stream_update);
     }
 
     // create the json string out of the config fragment
@@ -157,7 +162,7 @@ namespace dunedaq::cibmodules {
     {
       std::stringstream run;
       run << "run" << start_params.run;
-      SetCalibrationStream(run.str()) ;
+      set_calibration_stream(run.str()) ;
     }
     // FIXME: Convert this to protobuf
     if ( send_message( "{\"command\":\"StartRun\"}" )  )
@@ -188,10 +193,10 @@ namespace dunedaq::cibmodules {
     }
     else
     {
-      throw CTBCommunicationError(ERS_HERE, "Unable to stop CTB");
+      throw CIBCommunicationError(ERS_HERE, "Unable to stop CIB");
     }
     //
-    store_run_trigger_counters( m_run_number ) ;
+    //store_run_trigger_counters( m_run_number ) ;
     m_thread_.stop_working_thread();
 
 
@@ -313,7 +318,7 @@ namespace dunedaq::cibmodules {
           ++m_num_TR_words;
           content::word::trigger_t * trigger_word = reinterpret_cast<content::word::trigger_t*>( & temp_word ) ;
 
-          m_last_readout_hlt_timestamp = trigger_word->timestamp;
+          m_last_readout_timestamp = trigger_word->timestamp;
           // we do not need to knwo anything else
           // ideally, one could add other information such as the direction
           // this should be coming packed in the trigger word
@@ -568,12 +573,12 @@ namespace dunedaq::cibmodules {
       std::string type = messages[i]["type"].dump() ;
       if ( type.find("error") != std::string::npos || type.find("Error") != std::string::npos || type.find("ERROR") != std::string::npos )
       {
-        ers::error(CĨBMessage(ERS_HERE, messages[i]["message"].dump()));
+        ers::error(CIBMessage(ERS_HERE, messages[i]["message"].dump()));
         ret = false ;
       }
       else if ( type.find("warning") != std::string::npos || type.find("Warning") != std::string::npos || type.find("WARNING") != std::string::npos )
       {
-        ers::warning(CĨBMessage(ERS_HERE, messages[i]["message"].dump()));
+        ers::warning(CIBMessage(ERS_HERE, messages[i]["message"].dump()));
       }
       else if ( type.find("info") != std::string::npos || type.find("Info") != std::string::npos || type.find("INFO") != std::string::npos)
       {
@@ -601,7 +606,7 @@ namespace dunedaq::cibmodules {
   }
 
   double
-  CTBModule::read_average_buffer_counts()
+  CIBModule::read_average_buffer_counts()
   {
     std::unique_lock mon_data_lock(m_buffer_counts_mutex);
 
@@ -621,7 +626,7 @@ namespace dunedaq::cibmodules {
     }
   }
 
-  void CTBModule::get_info(opmonlib::InfoCollector& ci, int /*level*/)
+  void CIBModule::get_info(opmonlib::InfoCollector& ci, int /*level*/)
   {
     dunedaq::cibmodules::cibmoduleinfo::CIBModuleInfo module_info;
 
@@ -631,7 +636,8 @@ namespace dunedaq::cibmodules {
     module_info.ctb_hardware_configuration_status = m_is_configured;
     module_info.num_ts_words_received = m_num_TS_words;
 
-    module_info.last_readout_timestamp = m_last_readout_hlt_timestamp.load();
+    module_info.last_readout_timestamp = m_last_readout_timestamp.load();
+    // -- need to define these counters (and set the code to update them
     module_info.sent_hsi_events_counter = m_sent_counter.load();
     module_info.failed_to_send_hsi_events_counter = m_failed_to_send_counter.load();
     module_info.last_sent_timestamp = m_last_sent_timestamp.load();

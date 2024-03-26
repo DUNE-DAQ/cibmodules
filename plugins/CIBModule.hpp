@@ -37,7 +37,6 @@
 #include <atomic>
 #include <limits>
 #include <string>
-#include <json.hpp>
 
 using json=nlohmann::json;
 
@@ -63,8 +62,8 @@ public:
   CIBModule(CIBModule&&) = delete;
   CIBModule& operator=(CIBModule&&) = delete;
 
-  ~CIBModule() = default;
-
+//  ~CIBModule() = default;
+  ~CIBModule();
 
   bool ErrorState() const { return m_error_state.load() ; }
   void get_info(opmonlib::InfoCollector& ci, int level) override;
@@ -78,6 +77,7 @@ private:
 
   /*const */unsigned int m_receiver_port;
   std::chrono::microseconds m_receiver_timeout;
+  std::chrono::microseconds m_timeout;
 
 
 
@@ -107,7 +107,7 @@ private:
   bool send_message(const std::string & msg);
 
   // Configuration
-  dunedaq::ctbmodules::ctbmodule::Conf m_cfg;
+  dunedaq::cibmodules::cibmodule::Conf m_cfg;
   std::atomic<daqdataformats::run_number_t> m_run_number;
 
   // Threading

@@ -61,7 +61,7 @@ local types = {
     ], doc="Central Trigger Board Misc Configuration"),
   
   
-    cib: s.record("cib",  [
+    cib: s.record("CIB",  [
         s.field("sockets", self.sockets, self.sockets),
         s.field("misc", self.misc, self.misc),
         ], doc="Calibration Interface Board Configuration Object"),

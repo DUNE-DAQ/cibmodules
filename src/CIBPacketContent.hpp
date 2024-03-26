@@ -139,12 +139,6 @@ namespace dunedaq {
                static size_t const n_bits_type      = 3;
 
                bool IsTrigger() const { return word_type == word_type::t_trigger; }
-               bool IsLLT() const { return word_type == word_type::t_lt ; }
-               bool IsTrigger( const unsigned int i ) const {
-                 if ( IsHLT() ) return trigger_word & ( 0x1 << i ) ;
-                 if ( IsLLT() ) return i == 0 ? false : trigger_word & ( 0x1 << (i-1) ) ;
-                 return false ;
-               }
              } trigger_t;
 
           } // -- namespace word
