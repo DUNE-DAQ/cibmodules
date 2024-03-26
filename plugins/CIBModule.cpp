@@ -632,8 +632,8 @@ namespace dunedaq::cibmodules {
 
     module_info.num_control_messages_sent = m_num_control_messages_sent.load();
     module_info.num_control_responses_received = m_num_control_responses_received.load();
-    module_info.ctb_hardware_run_status = m_is_running;
-    module_info.ctb_hardware_configuration_status = m_is_configured;
+    module_info.cib_hardware_run_status = m_is_running;
+    module_info.cib_hardware_configuration_status = m_is_configured;
     module_info.num_ts_words_received = m_num_TS_words;
 
     module_info.last_readout_timestamp = m_last_readout_timestamp.load();
