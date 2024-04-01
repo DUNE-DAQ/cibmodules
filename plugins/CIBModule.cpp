@@ -164,8 +164,11 @@ namespace dunedaq::cibmodules {
       run << "run" << start_params.run;
       set_calibration_stream(run.str()) ;
     }
+    nlohmann::json cmd;
+    cmd["command"] = "start_run";
+    cmd["run_number"] = start_params.run;
     // FIXME: Convert this to protobuf
-    if ( send_message( "{\"command\":\"StartRun\"}" )  )
+    if ( send_message( cmd.dump() )  )
     {
       m_is_running.store(true);
       TLOG_DEBUG(1) << get_name() << ": successfully started";
@@ -186,7 +189,7 @@ namespace dunedaq::cibmodules {
 
     TLOG_DEBUG(0) << get_name() << ": Sending stop run command" << std::endl;
     // FIXME: Convert this to protobuf
-    if(send_message( "{\"command\":\"StopRun\"}" ) )
+    if(send_message( "{\"command\":\"stop_run\"}" ) )
     {
       TLOG_DEBUG(1) << get_name() << ": successfully stopped";
       m_is_running.store( false ) ;
@@ -333,6 +336,7 @@ namespace dunedaq::cibmodules {
           hsi_struct[2] = trigger_word->timestamp >> 32; // ts high
           // we could use these 2 sets of 32 bits to identify the direction
           // TODO: Propose to change this to include additional information
+          // these 64 bits could be used to define a direction
           hsi_struct[3] = 0x0;                      // lower 32b
           hsi_struct[4] = 0x0;                      // upper 32b
           hsi_struct[5] = trigger_word->trigger_word;    // trigger_map;
@@ -509,7 +513,14 @@ namespace dunedaq::cibmodules {
 
     TLOG_DEBUG(1) << get_name() << ": Sending config" << std::endl;
 
-    if ( send_message( config ) )
+    // structure the message to have a common management structure
+    //json receiver = doc.at("ctb").at("sockets").at("receiver");
+
+    nlohmann::json conf;
+    conf["command"] = "config";
+    conf["config"] = config;
+
+    if ( send_message( conf.dump() ) )
     {
       m_is_configured.store(true) ;
     }

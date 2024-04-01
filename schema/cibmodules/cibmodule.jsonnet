@@ -21,7 +21,7 @@ local types = {
   
   
      receiver: s.record("Receiver",  [
-        s.field("rollover", self.uint8, 125000, doc="Packet rollover in timestamp clock cycles"),
+        s.field("timeout", self.uint8, 1000, doc="CIB Receiver Connection Timeout value (microseconds)"),
         s.field("host", self.string, "localhost"),
         s.field("port", self.uint8, 8992),
      ], doc="Calibration Interface Board Receiver Socket Configuration"),
@@ -73,7 +73,7 @@ local types = {
   
     conf: s.record("Conf", [
     
-            s.field("receiver_connection_timeout", self.uint8, 1000,
+            s.field("cib_control_timeout", self.uint8, 1000,
 	                doc="CIB Receiver Connection Timeout value (microseconds)"),
 	
 	        s.field("cib_control_port", self.uint8, 8991,
