@@ -12,36 +12,15 @@ local types = {
     double8 : s.number(  "double8", "f8",          doc="A double of 8 bytes"),
     boolean:  s.boolean( "Boolean",                doc="A boolean"),
     string:   s.string(  "String",   		   doc="A string"),   
-
-    // TO cibmodules DEVELOPERS: PLEASE DELETE THIS FOLLOWING COMMENT AFTER READING IT
-    // The following code is an example of a configuration record
-    // written in jsonnet. In the real world it would be written so as
-    // to allow the relevant members of CIBModule to be configured by
-    // Run Control
-  
   
      receiver: s.record("Receiver",  [
         s.field("timeout", self.uint8, 1000, doc="CIB Receiver Connection Timeout value (microseconds)"),
         s.field("host", self.string, "localhost"),
         s.field("port", self.uint8, 8992),
      ], doc="Calibration Interface Board Receiver Socket Configuration"),
-
-    monitor: s.record("Monitor",  [
-        s.field("enable", self.boolean, false),
-        s.field("host", self.string, "localhost"),
-        s.field("port", self.uint8, 8993),
-     ], doc="Calibration Interface Board  Monitor Socket Configuration"),
-
-    statistics: s.record("Statistics",  [
-        s.field("enable", self.boolean, false),
-        s.field("port", self.uint8, 8994),
-        s.field("updt_period", self.uint8, 1),
-     ], doc="Calibration Interface Board Statistics Socket Configuration"),
-
+    
     sockets: s.record("Sockets",  [
         s.field("receiver", self.receiver, self.receiver),
-        s.field("monitor", self.monitor, self.monitor),
-        s.field("statistics", self.statistics, self.statistics),
      ], doc="Calibration Interface Board Sockets Configuration"),
     
     timing: s.record("Timing",  [
@@ -57,7 +36,7 @@ local types = {
         s.field("standalone_enable", self.boolean, false, doc="Enable running in standalone mode, with a free running clock"),
         s.field("trigger_stream_enable", self.boolean, false, doc="Enable storing a separate dump of all triggers received from the CIB"),
         s.field("trigger_stream_output", self.string, "/nfs/sw/trigger/cib",doc="CIB Trigger Output Path"),
-        s.field("trigger_stream_update", self.uint8, "5",doc="CIB Trigger update interval"),
+        s.field("trigger_stream_update", self.uint8, "5",doc="CIB Trigger update interval (a new file is generated at this interval)"),
     ], doc="Central Trigger Board Misc Configuration"),
   
   
@@ -73,15 +52,12 @@ local types = {
   
     conf: s.record("Conf", [
     
-            s.field("cib_control_timeout", self.uint8, 1000,
-	                doc="CIB Receiver Connection Timeout value (microseconds)"),
-	
-	        s.field("cib_control_port", self.uint8, 8991,
-	                doc="CIB Control Connection Port"),
-	
-	        s.field("cib_control_host", self.string, "np04-cib-1",
+	        s.field("cib_host", self.string, "np04-cib-1",
 	                doc="CIB Hostname"),
-	           	 
+	
+	        s.field("cib_port", self.uint8, 8991,
+	                doc="CIB Control Connection Port"),
+		           	 
 	        s.field("board_config", self.board_config, self.board_config, doc="CIB board config"),
 	    
                            ],
