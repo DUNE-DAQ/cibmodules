@@ -35,18 +35,20 @@ namespace dunedaq::cibmodules {
               : hsilibs::HSIEventSender(name)
                 , m_is_running(false)
                 , m_is_configured(false)
-                , m_num_TS_words(0)
-                , m_num_TR_words(0)
                 , m_error_state(false)
                 , m_control_ios()
                 , m_receiver_ios()
                 , m_control_socket(m_control_ios)
                 , m_receiver_socket(m_receiver_ios)
                 , m_thread_(std::bind(&CIBModule::do_hsi_work, this, std::placeholders::_1))
+                , m_run_packet_counter(0)
                 , m_run_trigger_counter(0)
+                , m_num_total_triggers(0)
+
                 , m_num_control_messages_sent(0)
                 , m_num_control_responses_received(0)
                 , m_last_readout_timestamp(0)
+
                 {
     register_command("conf", &CIBModule::do_configure);
     register_command("start", &CIBModule::do_start);
@@ -84,10 +86,9 @@ namespace dunedaq::cibmodules {
     // this is automatically generated out of the jsonnet files in the (config) schema
     m_cfg = args.get<cibmodule::Conf>();
     // set local caches for the variables that are needed to set up the receiving ends
-    // this should be localhost
-    //m_receiver_host = m_cfg.board_config.cib.sockets.receiver.host;
+    // remember that on the server side the receiver host is necessary
     m_receiver_port = m_cfg.board_config.cib.sockets.receiver.port;
-    m_receiver_timeout = std::chrono::microseconds( m_cfg.receiver_connection_timeout ) ;
+    m_receiver_timeout = std::chrono::microseconds( m_cfg.board_config.cib.sockets.receiver.timeout ) ;
 
     TLOG_DEBUG(0) << get_name() << ": Board receiver network location "
         << m_cfg.board_config.cib.sockets.receiver.host << ':'
@@ -100,14 +101,13 @@ namespace dunedaq::cibmodules {
     // network connection to cib hardware control
     boost::asio::ip::tcp::resolver resolver( m_control_ios );
     // once again, these are obtained from the configuration
-    boost::asio::ip::tcp::resolver::query query(m_cfg.cib_control_host,
-                                                std::to_string(m_cfg.cib_control_port) ) ; //"np04-ctb-1", 8991
+    boost::asio::ip::tcp::resolver::query query(m_cfg.cib_host,
+                                                std::to_string(m_cfg.cib_port) ) ; //"np04-ctb-1", 8991
     boost::asio::ip::tcp::resolver::iterator iter = resolver.resolve(query) ;
 
     m_endpoint = iter->endpoint();
 
     // attempt the connection.
-    // FIXME: what to do if that fails?
     try
     {
       m_control_socket.connect( m_endpoint );
@@ -117,7 +117,7 @@ namespace dunedaq::cibmodules {
       TLOG() << "Exeption caught while establishing connection to CIB : " << e.what();
       // do nothing more. Just exist
       m_is_configured.store(false);
-      return;
+      throw CIBCommunicationError(ERS_HERE, "Unable to connect to CIB");
     }
 
     // if necessary, set the calibration stream
@@ -132,9 +132,10 @@ namespace dunedaq::cibmodules {
     // create the json string out of the config fragment
     nlohmann::json config;
     to_json(config, m_cfg.board_config);
-    TLOG() << "CONF TEST: " << config.dump();
+    TLOG() << "CONF TEST: \n" << config.dump();
 
     // FIXME: Actually would prefer to use protobufs, but this is also acceptable
+    // but the conversion from jsonnet is simpler
     send_config(config.dump());
   }
 
@@ -167,7 +168,7 @@ namespace dunedaq::cibmodules {
     nlohmann::json cmd;
     cmd["command"] = "start_run";
     cmd["run_number"] = start_params.run;
-    // FIXME: Convert this to protobuf
+
     if ( send_message( cmd.dump() )  )
     {
       m_is_running.store(true);
@@ -175,7 +176,7 @@ namespace dunedaq::cibmodules {
     }
     else
     {
-      throw CIBCommunicationError(ERS_HERE, "Unable to start rim CIB");
+      throw CIBCommunicationError(ERS_HERE, "Unable to start CIB run");
     }
 
     TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_start() method";
@@ -188,7 +189,6 @@ namespace dunedaq::cibmodules {
     TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering do_stop() method";
 
     TLOG_DEBUG(0) << get_name() << ": Sending stop run command" << std::endl;
-    // FIXME: Convert this to protobuf
     if(send_message( "{\"command\":\"stop_run\"}" ) )
     {
       TLOG_DEBUG(1) << get_name() << ": successfully stopped";
@@ -202,9 +202,7 @@ namespace dunedaq::cibmodules {
     //store_run_trigger_counters( m_run_number ) ;
     m_thread_.stop_working_thread();
 
-
     // reset counters
-
     m_run_trigger_counter=0;
     m_run_packet_counter=0;
 
@@ -234,7 +232,7 @@ namespace dunedaq::cibmodules {
 
     while ( running_flag.load() )
     {
-      if ( accepting.wait_for( m_timeout ) == std::future_status::ready )
+      if ( accepting.wait_for( m_receiver_timeout ) == std::future_status::ready )
       {
         break ;
       }
@@ -252,19 +250,16 @@ namespace dunedaq::cibmodules {
     content::tcp_header_t head ;
     head.packet_size = 0;
     content::word::word_t temp_word ;
-    boost::system::error_code receiving_error;
+    //boost::system::error_code receiving_error;
     bool connection_closed = false ;
-    uint64_t ch_stat_beam, ch_stat_crt, ch_stat_pds;
-    uint64_t llt_payload, channel_payload;
-    uint64_t prev_timestamp = 0;
-    std::pair<uint64_t,uint64_t> prev_channel, prev_prev_channel, prev_llt, prev_prev_llt; // pair<timestamp, trigger_payload>
 
     while (running_flag.load())
     {
 
       update_calibration_file();
 
-      if ( ! read( head ) ) {
+      if ( ! read( head ) )
+      {
         connection_closed = true ;
         break;
       }
@@ -273,7 +268,12 @@ namespace dunedaq::cibmodules {
       // extract n_words
 
       n_words = n_bytes / word_size ;
-      // read n words as requested from the header
+      // the CIB model is built on the idea that only one word is sent.
+      // although there is nothing wrong if more than one word is sent
+      if (n_words > 1)
+      {
+        TLOG_DEBUG(0) << get_name() <<  ": Received more than one word in a single packet : " << n_words << std::endl;
+      }
 
       update_buffer_counts(n_words);
 
@@ -288,38 +288,17 @@ namespace dunedaq::cibmodules {
         // put it in the calibration stream
         if ( m_calibration_stream_enable )
         {
-          m_calibration_file.write( reinterpret_cast<const char*>( & temp_word ), word_size ) ;
+          m_calibration_file.write( reinterpret_cast<const char*>( & temp_word ), word_size ) ; // NOLINT
           m_calibration_file.flush() ;
-        }          // word printing in calibration stream
-
-        //check if it is a TS word and increment the counter
-        if ( temp_word.word_type == content::word::t_ts )
-        {
-          m_num_TS_words++ ;
-          TLOG_DEBUG(9) << "Received timestamp word! TS: "+temp_word.timestamp;
-          prev_timestamp = temp_word.timestamp;
         }
-        // FIXME: Should we reintroduce these
-        // not for now. Use slow control to monitor the internal buffers
-        else if (  temp_word.word_type == content::word::t_fback  )
-        {
-          m_error_state.store( true ) ;
-          content::word::feedback_t * feedback = reinterpret_cast<content::word::feedback_t*>( & temp_word ) ;
-          TLOG_DEBUG(7) << "Received feedback word!";
-
-          TLOG_DEBUG(8) << get_name() << ": Feedback word: " << std::endl
-              << std::hex
-              << " \t Type -> " << feedback -> word_type << std::endl
-              << " \t TS -> " << feedback -> timestamp << std::endl
-              << " \t Code -> " << feedback -> code << std::endl
-              << " \t Source -> " << feedback -> source << std::endl
-              << " \t Padding -> " << feedback -> padding << std::dec << std::endl ;
-        }
-        else if (temp_word.word_type == content::word::t_trigger)
+        // we don't really need a word type any more
+        // there is only one word type being sent (trigger)
+        if (temp_word.word_type == content::word::t_trigger)
         {
           TLOG_DEBUG(3) << "Received IoLS trigger word!";
-          ++m_num_TR_words;
-          content::word::trigger_t * trigger_word = reinterpret_cast<content::word::trigger_t*>( & temp_word ) ;
+          ++m_num_total_triggers;
+          ++m_run_trigger_counter;
+          content::word::trigger_t * trigger_word = reinterpret_cast<content::word::trigger_t*>( & temp_word ) ; // NOLINT
 
           m_last_readout_timestamp = trigger_word->timestamp;
           // we do not need to knwo anything else
@@ -335,7 +314,7 @@ namespace dunedaq::cibmodules {
           hsi_struct[1] = trigger_word->timestamp & 0xFFFFFF;       // ts low
           hsi_struct[2] = trigger_word->timestamp >> 32; // ts high
           // we could use these 2 sets of 32 bits to identify the direction
-          // TODO: Propose to change this to include additional information
+          // TODO Nuno Barros Apr-02-2024: Propose to change this to include additional information
           // these 64 bits could be used to define a direction
           hsi_struct[3] = 0x0;                      // lower 32b
           hsi_struct[4] = 0x0;                      // upper 32b
@@ -345,22 +324,23 @@ namespace dunedaq::cibmodules {
           TLOG_DEBUG(4) << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
               << std::hex
               << "0x"   << hsi_struct[0]
-                                      << ", 0x" << hsi_struct[1]
-                                                              << ", 0x" << hsi_struct[2]
-                                                                                      << ", 0x" << hsi_struct[3]
-                                                                                                              << ", 0x" << hsi_struct[4]
-                                                                                                                                      << ", 0x" << hsi_struct[5]
-                                                                                                                                                              << ", 0x" << hsi_struct[6]
-                                                                                                                                                                                      << "\n";
+              << ", 0x" << hsi_struct[1]
+              << ", 0x" << hsi_struct[2]
+              << ", 0x" << hsi_struct[3]
+              << ", 0x" << hsi_struct[4]
+              << ", 0x" << hsi_struct[5]
+              << ", 0x" << hsi_struct[6]
+              << "\n";
 
           send_raw_hsi_data(hsi_struct, m_cib_hsi_data_sender.get());
 
-          // TODO properly fill device id
+          // TODO Nuno Barros Apr-02-2024 : properly fill device id
           dfmessages::HSIEvent event = dfmessages::HSIEvent(0x1,
                                                             trigger_word->trigger_word,
                                                             trigger_word->timestamp,
                                                             m_run_trigger_counter, m_run_number);
           send_hsi_event(event);
+
         }
       } // n_words loop
 
@@ -401,22 +381,26 @@ namespace dunedaq::cibmodules {
   }
 
   template<typename T>
-  bool CIBModule::read( T &obj) {
+  bool CIBModule::read( T &obj)
+  {
 
     boost::system::error_code receiving_error;
     boost::asio::read( m_receiver_socket, boost::asio::buffer( &obj, sizeof(T) ), receiving_error ) ;
 
-    if ( ! receiving_error ) {
+    if ( ! receiving_error )
+    {
       return true ;
     }
 
-    if ( receiving_error == boost::asio::error::eof) {
+    if ( receiving_error == boost::asio::error::eof)
+    {
       std::string error_message = "Socket closed: " + receiving_error.message();
       ers::error(CIBCommunicationError(ERS_HERE, error_message));
       return false ;
     }
 
-    if ( receiving_error ) {
+    if ( receiving_error )
+    {
       std::string error_message = "Read failure: " + receiving_error.message();
       ers::error(CIBCommunicationError(ERS_HERE, error_message));
       return false ;
@@ -427,7 +411,6 @@ namespace dunedaq::cibmodules {
 
   void CIBModule::init_calibration_file()
   {
-
     if ( ! m_calibration_stream_enable )
     {
       return ;
@@ -435,7 +418,8 @@ namespace dunedaq::cibmodules {
     char file_name[200] = "" ;
     time_t rawtime;
     time( & rawtime ) ;
-    struct tm * timeinfo = localtime( & rawtime ) ;
+    struct tm local_tm;
+    struct tm * timeinfo = localtime_r( & rawtime , &local_tm) ;
     strftime( file_name, sizeof(file_name), "%F_%H.%M.%S.calib", timeinfo );
     std::string global_name = m_calibration_dir + m_calibration_prefix + file_name ;
     m_calibration_file.open( global_name, std::ofstream::binary ) ;
@@ -443,7 +427,6 @@ namespace dunedaq::cibmodules {
     // _calibration_file.setf ( std::ios::hex, std::ios::basefield );
     // _calibration_file.unsetf ( std::ios::showbase );
     TLOG_DEBUG(0) << get_name() << ": New Calibration Stream file: " << global_name << std::endl ;
-
   }
 
   void CIBModule::update_calibration_file()
@@ -456,7 +439,8 @@ namespace dunedaq::cibmodules {
 
     std::chrono::steady_clock::time_point check_point = std::chrono::steady_clock::now();
 
-    if ( check_point - m_last_calibration_file_update < m_calibration_file_interval ) {
+    if ( check_point - m_last_calibration_file_update < m_calibration_file_interval )
+    {
       return ;
     }
 
@@ -480,28 +464,6 @@ namespace dunedaq::cibmodules {
     // possibly we could check here if the directory is valid and  writable before assuming the calibration stream is valid
     return true ;
   }
-  // do we actually need this summary?
-  //  bool CIBModule::store_run_trigger_counters( unsigned int run_number, const std::string & prefix) const {
-  //
-  //    if ( ! m_has_run_trigger_report )
-  //    {
-  //      return false ;
-  //    }
-  //
-  //    std::stringstream out_name ;
-  //    out_name << m_run_trigger_dir << prefix << "run_" << run_number << "_triggers.txt";
-  //    std::ofstream out( out_name.str() ) ;
-  //    out << "Good Part\t " << m_run_gool_part_counter << std::endl
-  //        << "Total HLT\t " << m_run_HLT_counter << std::endl ;
-  //
-  //    for ( unsigned int i = 0; i < m_metric_HLT_names.size() ; ++i )
-  //    {
-  //      out << "HLT " << i << " \t " << m_run_HLT_counters[i] << std::endl ;
-  //    }
-  //
-  //    return true;
-  //
-  //  }
 
   void CIBModule::send_config( const std::string & config ) {
 
@@ -518,7 +480,7 @@ namespace dunedaq::cibmodules {
 
     nlohmann::json conf;
     conf["command"] = "config";
-    conf["config"] = config;
+    conf["config"] = nlohmann::json::parse(config);
 
     if ( send_message( conf.dump() ) )
     {
@@ -558,7 +520,6 @@ namespace dunedaq::cibmodules {
   {
 
     //add error options
-    //FIXME: Migrate this to protobuf
     boost::system::error_code error;
     TLOG_DEBUG(1) << get_name() << ": Sending message: " << msg;
 
@@ -602,9 +563,7 @@ namespace dunedaq::cibmodules {
         TLOG() << get_name() << ": Unformatted from the board: " << blob.str();
       }
     }
-
     return ret;
-
   }
 
   void
@@ -612,7 +571,9 @@ namespace dunedaq::cibmodules {
   {
     std::unique_lock mon_data_lock(m_buffer_counts_mutex);
     if (m_buffer_counts.size() > 1000)
+    {
       m_buffer_counts.pop_front();
+    }
     m_buffer_counts.push_back(new_count);
   }
 
@@ -645,7 +606,7 @@ namespace dunedaq::cibmodules {
     module_info.num_control_responses_received = m_num_control_responses_received.load();
     module_info.cib_hardware_run_status = m_is_running;
     module_info.cib_hardware_configuration_status = m_is_configured;
-    module_info.num_ts_words_received = m_num_TS_words;
+    module_info.cib_num_triggers_received = m_num_total_triggers;
 
     module_info.last_readout_timestamp = m_last_readout_timestamp.load();
     // -- need to define these counters (and set the code to update them
