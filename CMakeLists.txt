@@ -61,7 +61,7 @@ daq_add_plugin(CIBModule duneDAQModule LINK_LIBRARIES hsilibs::hsilibs appfwk::a
 # See https://dune-daq-sw.readthedocs.io/en/latest/packages/daq-cmake/#daq_add_application
 
 daq_add_application(cib_monitor cib_monitor.cxx LINK_LIBRARIES ) # Any libraries to link in not yet determined
-daq_add_application(cib_simulator cib_simulator.cxx LINK_LIBRARIES ) # Any libraries to link in not yet determined
+#daq_add_application(cib_simulator cib_simulator.cxx LINK_LIBRARIES ) # Any libraries to link in not yet determined
 
 ##############################################################################
 
