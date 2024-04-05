@@ -33,7 +33,6 @@ local types = {
   
     misc: s.record("Misc",  [
         s.field("timing", self.timing, self.timing),
-        s.field("standalone_enable", self.boolean, false, doc="Enable running in standalone mode, with a free running clock"),
         s.field("trigger_stream_enable", self.boolean, false, doc="Enable storing a separate dump of all triggers received from the CIB"),
         s.field("trigger_stream_output", self.string, "/nfs/sw/trigger/cib",doc="CIB Trigger Output Path"),
         s.field("trigger_stream_update", self.uint8, "5",doc="CIB Trigger update interval (a new file is generated at this interval)"),
@@ -50,20 +49,14 @@ local types = {
 			s.field("cib", self.cib, self.cib),
         ], doc="Calibration Interface Board Configuration Wrapper"),
   
+  
+  
     conf: s.record("Conf", [
-    
-	        s.field("cib_host", self.string, "np04-cib-1",
-	                doc="CIB Hostname"),
-	
-	        s.field("cib_port", self.uint8, 8991,
-	                doc="CIB Control Connection Port"),
-		           	 
-	        s.field("board_config", self.board_config, self.board_config, doc="CIB board config"),
-	    
-                           ],
-                   doc="CIB DAQ Module Configuration"),
-    
-
+    		s.field("cib_instance", self.int4, 0, doc="CIB instance"),
+	        s.field("cib_host", self.string, "np04-cib-1", doc="CIB Hostname"),
+	        s.field("cib_port", self.uint8, 8991, doc="CIB Connection Port"),
+	        s.field("board_config", self.board_config, self.board_config, doc="CIB board configuration"),
+		], doc="CIB DAQ Module Configuration"),
 };
 
 moo.oschema.sort_select(types, ns)
