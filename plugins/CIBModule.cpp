@@ -87,12 +87,12 @@ namespace dunedaq::cibmodules {
     m_cfg = args.get<cibmodule::Conf>();
     // set local caches for the variables that are needed to set up the receiving ends
     // remember that on the server side the receiver host is necessary
-    m_receiver_port = m_cfg.board_config.cib.sockets.receiver.port;
-    m_receiver_timeout = std::chrono::microseconds( m_cfg.board_config.cib.sockets.receiver.timeout ) ;
+    m_receiver_port = m_cfg.board_config.sockets.receiver.port;
+    m_receiver_timeout = std::chrono::microseconds( m_cfg.board_config.sockets.receiver.timeout ) ;
 
     TLOG_DEBUG(0) << get_name() << ": Board receiver network location "
-        << m_cfg.board_config.cib.sockets.receiver.host << ':'
-        << m_cfg.board_config.cib.sockets.receiver.port << std::endl;
+        << m_cfg.board_config.sockets.receiver.host << ':'
+        << m_cfg.board_config.sockets.receiver.port << std::endl;
 
     // Initialise monitoring variables
     m_num_control_messages_sent = 0;
@@ -122,11 +122,11 @@ namespace dunedaq::cibmodules {
 
     // if necessary, set the calibration stream
     // the CIB calibration stream is something a bit different
-    if ( m_cfg.board_config.cib.misc.trigger_stream_enable)
+    if ( m_cfg.board_config.misc.trigger_stream_enable)
     {
       m_calibration_stream_enable = true ;
-      m_calibration_dir = m_cfg.board_config.cib.misc.trigger_stream_output ;
-      m_calibration_file_interval = std::chrono::minutes(m_cfg.board_config.cib.misc.trigger_stream_update);
+      m_calibration_dir = m_cfg.board_config.misc.trigger_stream_output ;
+      m_calibration_file_interval = std::chrono::minutes(m_cfg.board_config.misc.trigger_stream_update);
     }
 
     // create the json string out of the config fragment

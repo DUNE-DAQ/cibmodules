@@ -1,8 +1,11 @@
 local moo = import "moo.jsonnet";
+
+local nc = moo.oschema.numeric_constraints;
+
 local ns = "dunedaq.cibmodules.cibmodule";
 local s = moo.oschema.schema(ns);
 
-local types = {
+local cibmodule = {
 
     int4 :    s.number(  "int4",    "i4",          doc="A signed integer of 4 bytes"),
     uint4 :   s.number(  "uint4",   "u4",          doc="An unsigned integer of 4 bytes"),
@@ -12,6 +15,8 @@ local types = {
     double8 : s.number(  "double8", "f8",          doc="A double of 8 bytes"),
     boolean:  s.boolean( "Boolean",                doc="A boolean"),
     string:   s.string(  "String",   		   doc="A string"),   
+  
+  	trigger_bit_selector: s.number('trigger_bit', dtype='i4', constraints=nc(minimum=0, maximum=1),  doc='Trigger bit. Each module should be assigned a different one.'),
   
      receiver: s.record("Receiver",  [
         s.field("timeout", self.uint8, 1000, doc="CIB Receiver Connection Timeout value (microseconds)"),
@@ -32,26 +37,21 @@ local types = {
   
   
     misc: s.record("Misc",  [
-        s.field("timing", self.timing, self.timing),
         s.field("trigger_stream_enable", self.boolean, false, doc="Enable storing a separate dump of all triggers received from the CIB"),
         s.field("trigger_stream_output", self.string, "/nfs/sw/trigger/cib",doc="CIB Trigger Output Path"),
         s.field("trigger_stream_update", self.uint8, "5",doc="CIB Trigger update interval (a new file is generated at this interval)"),
     ], doc="Central Trigger Board Misc Configuration"),
-  
-  
-    cib: s.record("CIB",  [
-        s.field("sockets", self.sockets, self.sockets),
-        s.field("misc", self.misc, self.misc),
-        ], doc="Calibration Interface Board Configuration Object"),
-  	
+    	
   
     board_config: s.record("Board_config",  [
-			s.field("cib", self.cib, self.cib),
+			s.field("sockets", self.sockets, self.sockets),
+			s.field("timing", self.timing, self.timing),
+			s.field("misc", self.misc, self.misc),
         ], doc="Calibration Interface Board Configuration Wrapper"),
   
-  
-  
+    
     conf: s.record("Conf", [
+    		s.field("cib_trigger_bit", self.trigger_bit_selector, default=0, doc="Associated trigger bit" ),
     		s.field("cib_instance", self.int4, 0, doc="CIB instance"),
 	        s.field("cib_host", self.string, "np04-cib-1", doc="CIB Hostname"),
 	        s.field("cib_port", self.uint8, 8991, doc="CIB Connection Port"),
@@ -59,4 +59,4 @@ local types = {
 		], doc="CIB DAQ Module Configuration"),
 };
 
-moo.oschema.sort_select(types, ns)
+moo.oschema.sort_select(cibmodule, ns)
