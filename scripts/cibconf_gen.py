@@ -72,7 +72,7 @@ def cli(
     console.log(f'Receiving config_file [{config_file}]')
     console.log(f"\nTotal configuration for this app before any overrides: {config_data.pod()}")
 
-    console.log('Loading cardcontrollerapp config generator')
+    #console.log('Loading cardcontrollerapp config generator')
     #from cibmodules.boardcontrollerapp import boardcontrollerapp_gen
     console.log("Loading cibmodulesapp config generator")
     #from cibmodules import cibmodulesapp_gen
@@ -83,24 +83,21 @@ def cli(
     import dunedaq.daqconf.bootgen as bootgen
     moo.otypes.load_types('cibmodules/cibmodule.jsonnet')
     import dunedaq.cibmodules.cibmodule as cibmodule
-    print(str(cibmodule.Conf))
+    #print(str(cibmodule.Conf))
     
     boot = bootgen.boot(**config_data.boot)
     console.log(f"boot configuration object: {boot.pod()}")
     #console.log(f"cibmodule configuration object: {cibmodule.pod()}")
     #for x in config_data:
     #    print(x,config_data[x])
-    num_cib_modules = config_data.num_cib_modules
-    print(config_data.num_cib_modules)
+    
+    num_cib_modules = config_data.cib_num_modules
+    print(config_data.cib_num_modules)
     # For some weird reason I cannot instantiate the properties of cibmodule
     # from inside the confgen
-    print(config_data.cib_modules)
+    #print(config_data.cib_modules)
 
-    console.log(f"Genrating {num_cib_modules} instances of CIBModule")
-    
-    console.log('Loading cibapp config generator')
-    # This is the folder structure in the cibmodule
-    from cibmodules.apps import cibapp_gen
+    console.log(f"Generating {num_cib_modules} instances of CIBModule")
     
     # Update with command-line options
     if force_pm is not None:
@@ -110,13 +107,64 @@ def cli(
     the_system = System()
     # set the nickname to something memorable
     nickname = "cib"
-    # generate as many apps as 'num_cib_modules'
-    #print(cibmodules)
-    #cibs = cibmodules.cibs
-    the_system.apps["cibmodulesapp"] = cibmodulesapp_gen.get_cibmodules_app(
-        nickname = nickname, 
-        num_cibmodules = cibmodules.num_cibmodules,
-        some_configured_value = cibmodules.some_configured_value
+
+    console.log('Loading cibapp config generator')
+    # This is the folder structure in the cibmodule
+    from cibmodules.apps import cib_hsi_gen
+    
+    import dunedaq.cibmodules.cibmodule as cibmodule
+
+    # now loop over the number of instances
+    # Check whether a configuration already has been defined
+    cibinst = [ c for c in config_data.cib_instances ]
+    num_inst_confs = len(cibinst)
+    
+    print(cibinst)
+    #print(str(confgen.cib_hsi_instances.items()))
+    
+    #print(str(confgen.cib_hsi_instances[0]))
+    
+    
+    # grab a default config
+    default_config = confgen.cib_hsi_inst()
+    
+    #ctb_hsi = confgen.ctb_hsi(**config_data.ctb_hsi)
+    #if debug: console.log(f"ctb_hsi configuration object: {ctb_hsi.pod()}")
+
+    lconfs = confgen.cib_hsi_instances
+    
+    # Set default configuration for all of them
+    if num_inst_confs != num_cib_modules:
+        lconfs = [default_config for i in range(num_cib_modules)]
+    for i in range(num_cib_modules):
+        # Check i
+        name = f"cib{i}"
+        
+        console.log(f"Generating instance {i} of CIBModule app : {name}")
+        the_system.apps[name] = cib_hsi_gen.get_cib_hsi_app(
+            nickname = nickname, 
+            instance_id = i,
+            source_id = 0, # do we need this here?
+            conf = lconfs[i]
+        )
+
+    console.log('generated cib_hsi_apps')
+    ####################################################################
+    # Application command data generation
+    ####################################################################
+
+    from daqconf.core.conf_utils import make_app_command_data
+    # Arrange per-app command data into the format used by util.write_json_files()
+    app_command_datas = {
+        name : make_app_command_data(the_system, app, name)
+        for name,app in the_system.apps.items()
+    }
+
+    # Make boot.json config
+    from daqconf.core.conf_utils import make_system_command_datas, write_json_files
+    system_command_datas = make_system_command_datas(
+        boot,
+        the_system,
     )
 
     write_json_files(app_command_datas, system_command_datas, json_dir, verbose=True)
