@@ -47,7 +47,7 @@ def get_cib_hsi_app(nickname,
     lus = []
     
     # Name of this instance
-    name = f"{nickname}_{instance_id}"
+    name = f"{nickname}{instance_id}"
 
     lconf = cib.Conf(cib_trigger_bit=conf.trigger, 
                      cib_host=conf.cib_host, 
@@ -56,7 +56,7 @@ def get_cib_hsi_app(nickname,
 
     # Should one of these be made per CIB module?
     # In principle there should be no need for more than one please
-    modules += [DAQModule(name = f"{name}_datahandler",
+    modules += [DAQModule(name = f"{nickname}_datahandler",
                         plugin = "HSIDataLinkHandler",
                         conf = rconf.Conf(readoutmodelconf = rconf.ReadoutModelConf(source_queue_timeout_ms = QUEUE_POP_WAIT_MS, 
                                                                                     source_id=source_id,
@@ -84,7 +84,7 @@ def get_cib_hsi_app(nickname,
 
 
     queues = [Queue(f"{name}.cib_output",
-                    f"{name}_datahandler.raw_input",
+                    f"{nickname}_datahandler.raw_input",
                     "HSIFrame",
                     size=100000)
                      ]
@@ -93,11 +93,11 @@ def get_cib_hsi_app(nickname,
 
     mgraph.add_fragment_producer(id = source_id, 
                                  subsystem = "HW_Signals_Interface",
-                                 requests_in   = f"{name}_datahandler.request_input",
-                                 fragments_out = f"{name}_datahandler.fragment_queue")
+                                 requests_in   = f"{nickname}_datahandler.request_input",
+                                 fragments_out = f"{nickname}_datahandler.fragment_queue")
 
     mgraph.add_endpoint(f"timesync_cib", 
-                        f"{name}_datahandler.timesync_output", 
+                        f"{nickname}_datahandler.timesync_output", 
                         "TimeSync", 
                         Direction.OUT, 
                         is_pubsub=True, 
