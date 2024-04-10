@@ -35,9 +35,6 @@ def get_cib_hsi_app(nickname,
                     DATA_REQUEST_TIMEOUT=1000,
                     host="localhost"):
 
-#                        endpoint_host,
-#                    endpoint_port, 
-
     '''
     Here an entire application consisting only of one CIBModule is generated. 
     '''
@@ -49,22 +46,13 @@ def get_cib_hsi_app(nickname,
     modules = []
     lus = []
     
-    # Grab the default configuration
-    lconf = cib.Conf().pod()
-    print(lconf)
-    # use the default configuration as default
-    # And now change it accordingly with the information that is specific to this app instance
-    lconf["cib_trigger_bit"] = conf.trigger
-    lconf["cib_host"] = conf.cib_host
-    lconf["cib_port"] = conf.cib_port
-    lconf["board_config"]["sockets"]["receiver"]["host"] = conf.host
-    
-    
-    console.log(f"local_conf configuration {lconf}")
-    # Now build the app proper
-    
     # Name of this instance
     name = f"{nickname}_{instance_id}"
+
+    lconf = cib.Conf(cib_trigger_bit=conf.trigger, 
+                     cib_host=conf.cib_host, 
+                     cib_port=conf.cib_port,
+                     board_config=cib.Board_config(sockets=cib.Sockets(receiver=cib.Receiver(host=conf.host))))
 
     # Should one of these be made per CIB module?
     # In principle there should be no need for more than one please
@@ -91,8 +79,6 @@ def get_cib_hsi_app(nickname,
     # Assign a unique name
     modules += [DAQModule(name = name, 
                           plugin = 'CIBModule',
-                          # Customize the part of the configuration
-                          # The best is to do this outside this call
                           conf = lconf
                      )]
 
@@ -123,8 +109,9 @@ def get_cib_hsi_app(nickname,
     # dummy subscriber
     mgraph.add_endpoint(None, None, data_type="TimeSync", inout=Direction.IN, is_pubsub=True)
 
-    console.log('generated DAQ module')
+    console.log('generated CIB DAQ module')
 
-    cib_app = App(modulegraph=mgraph, host=host, name=name)
+    cib_app = App(modulegraph=mgraph, host=host, name=nickname)
+    console.log('app {nickname} generated')
 
     return cib_app
