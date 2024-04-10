@@ -112,6 +112,6 @@ def get_cib_hsi_app(nickname,
     console.log('generated CIB DAQ module')
 
     cib_app = App(modulegraph=mgraph, host=host, name=nickname)
-    console.log('app {nickname} generated')
+    console.log(f"app {nickname} generated")
 
     return cib_app
