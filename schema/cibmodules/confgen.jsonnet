@@ -1,54 +1,40 @@
 // This is the configuration schema for cibmodules
 
+
 local moo = import "moo.jsonnet";
-local sdc = import "daqconf/confgen.jsonnet";
-local daqconf = moo.oschema.hier(sdc).dunedaq.daqconf.confgen;
+
+local nc = moo.oschema.numeric_constraints;
+
+local stypes = import "daqconf/types.jsonnet";
+local types = moo.oschema.hier(stypes).dunedaq.daqconf.types;
+
+local sboot = import "daqconf/bootgen.jsonnet";
+local bootgen = moo.oschema.hier(sboot).dunedaq.daqconf.bootgen;
+
+//local cibm = import "cibmodules/cibmodule.jsonnet";
+//local cibmod = moo.oschema.hier(cibm).dunedaq.cibmodules.cibmodule;
 
 local ns = "dunedaq.cibmodules.confgen";
 local s = moo.oschema.schema(ns);
 
 
-//local cs = {
-//
-//    int4 :    s.number(  "int4",    "i4",          doc="A signed integer of 4 bytes"),
-//    uint4 :   s.number(  "uint4",   "u4",          doc="An unsigned integer of 4 bytes"),
-//    int8 :    s.number(  "int8",    "i8",          doc="A signed integer of 8 bytes"),
-//    uint8 :   s.number(  "uint8",   "u8",          doc="An unsigned integer of 8 bytes"),
-//    float4 :  s.number(  "float4",  "f4",          doc="A float of 4 bytes"),
-//    double8 : s.number(  "double8", "f8",          doc="A double of 8 bytes"),
-//    boolean:  s.boolean( "Boolean",                doc="A boolean"),
-//    string:   s.string(  "String",   		   doc="A string"),   
-//    monitoring_dest: s.enum(     "MonitoringDest", ["local", "cern", "pocket"]),
-//
-//    cibmodules: s.record("cibmodules", [
-//        s.field( "some_configured_value", self.int4, default=31415, doc="A value which configures the CIBModule DAQModule instance"),
-//        s.field( "num_cibmodules", self.int4, default=2, doc="A value which configures the number of instances of CIBModule"),
-//    ]),
-//
-//    cibmodules_gen: s.record("cibmodules_gen", [
-//        s.field("boot", daqconf.boot, default=daqconf.boot, doc="Boot parameters"),
-//        s.field("cibmodules", self.cibmodules, default=self.cibmodules, doc="cibmodules parameters"),
-//    ]),
-//};
-//
 local cs = {
 
-    id :    s.number(  "int4",    "i4",          doc="IoLS ID"),
-    enable:  s.boolean( "Boolean",                doc="Enable this IoLS system"),
-    description:   s.string(  "String",   		   doc="Description of the IoLS system"),   
-    monitoring_dest: s.enum(     "MonitoringDest", ["local", "cern", "pocket"]),
+  cib_hsi_inst: s.record("cib_hsi_inst", [
+    	s.field("trigger"	,types.int4, default=0, 					doc='Which CIB trigger is mapped by this instance'),
+  		s.field("host" 	 	,types.host, default='localhost',			doc='Host where this HSI app instance will run'),
+  		s.field("cib_host"	,types.host, default='np04-iols-cib-01', 	doc='CIB endpoint host'),
+  		s.field("cib_port"	,types.port, default=8992, 					doc='CIB endpoint port'),  	
+  ]),
 
-    cibmodules: s.record("cibmodules", [
-        s.field( "some_configured_value", self.int4, default=31415, doc="A value which configures the CIBModule DAQModule instance"),
-        s.field( "num_cibmodules", self.int4, default=2, doc="A value which configures the number of instances of CIBModule"),
-    ]),
+	cib_seq : s.sequence("cib_hsi_instances",	self.cib_hsi_inst, doc="list of CIB HSI instances"),
 
     cibmodules_gen: s.record("cibmodules_gen", [
-        s.field("boot", daqconf.boot, default=daqconf.boot, doc="Boot parameters"),
-        s.field("cibmodules", self.cibmodules, default=self.cibmodules, doc="cibmodules parameters"),
+        s.field("boot", 			bootgen.boot, 		default=bootgen.boot, 			doc="Boot parameters"),
+ 	    s.field( "cib_num_modules", types.int4, default=2, doc='Number of modules to be instantiated. Default is 2 (one per periscope)'),
+		s.field( "cib_instances",	self.cib_seq , default=[], doc="List of configurations for each instance"),
     ]),
 };
 
 
-// Output a topologically sorted array.
-sdc + moo.oschema.sort_select(cs, ns)
+stypes + sboot + moo.oschema.sort_select(cs, ns)
