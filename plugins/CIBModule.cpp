@@ -22,12 +22,15 @@
 #include <thread>
 #include <vector>
 
+#define CIB_DUNEDAQ 1
+#include <cib_data_fmt.h>
+
 /**
  * @brief Name used by TRACE TLOG calls from this source file
  */
 #define TRACE_NAME "CIBModule" // NOLINT
 #define TLVL_ENTER_EXIT_METHODS 10
-#define TLVL_CTB_MODULE 15
+#define TLVL_CIB_MODULE 15
 
 namespace dunedaq::cibmodules {
 
@@ -102,7 +105,7 @@ namespace dunedaq::cibmodules {
     boost::asio::ip::tcp::resolver resolver( m_control_ios );
     // once again, these are obtained from the configuration
     boost::asio::ip::tcp::resolver::query query(m_cfg.cib_host,
-                                                std::to_string(m_cfg.cib_port) ) ; //"np04-ctb-1", 8991
+                                                std::to_string(m_cfg.cib_port) ) ; //"np04-iols-cib-01", 8991
     boost::asio::ip::tcp::resolver::iterator iter = resolver.resolve(query) ;
 
     m_endpoint = iter->endpoint();
@@ -131,6 +134,8 @@ namespace dunedaq::cibmodules {
 
     // create the json string out of the config fragment
     nlohmann::json config;
+    config["command"] = "config";
+    config["config"] = nlohmann::json();
     to_json(config, m_cfg.board_config);
     TLOG() << "CONF TEST: \n" << config.dump();
 
@@ -158,6 +163,10 @@ namespace dunedaq::cibmodules {
 
     TLOG_DEBUG(0) << get_name() << ": Sending start of run command";
     m_thread_.start_working_thread();
+
+    // NFB: There is a potential race condition here: the socket in the working thread
+    // needs to be in place before the CIB receives order to send data, or we risk having a connection
+    // failure, if for some reason the CIB attempts to connect before the working thread is ready to receive.
 
     if ( m_calibration_stream_enable )
     {
@@ -221,7 +230,7 @@ namespace dunedaq::cibmodules {
     const size_t header_size = sizeof( content::tcp_header_t ) ;
     const size_t word_size = content::word::word_t::size_bytes ;
 
-    TLOG_DEBUG(TLVL_CTB_MODULE) << get_name() <<  ": Header size: " << header_size << std::endl
+    TLOG_DEBUG(TLVL_CIB_MODULE) << get_name() <<  ": Header size: " << header_size << std::endl
         << "Word size: " << word_size << std::endl;
 
     //connect to socket
@@ -269,7 +278,9 @@ namespace dunedaq::cibmodules {
 
       n_words = n_bytes / word_size ;
       // the CIB model is built on the idea that only one word is sent.
-      // although there is nothing wrong if more than one word is sent
+      // although there is nothing wrong if more than one word is sent. It just means that one trigger will be delayed.
+      // yet thatin itself is not an issue, as the DAQ holds the data for far longer than any delay that could be accumulated
+      // on the CIB side (< ms)
       if (n_words > 1)
       {
         TLOG_DEBUG(0) << get_name() <<  ": Received more than one word in a single packet : " << n_words << std::endl;
@@ -375,7 +386,7 @@ namespace dunedaq::cibmodules {
     }
 
 
-    TLOG_DEBUG(TLVL_CTB_MODULE) << get_name() << ": End of do_work loop: stop receiving data from the CIB";
+    TLOG_DEBUG(TLVL_CIB_MODULE) << get_name() << ": End of do_work loop: stop receiving data from the CIB";
 
     TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_work() method";
   }

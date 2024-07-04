@@ -20,8 +20,6 @@
 
 #include <ers/Issue.hpp>
 
-#include "CIBPacketContent.hpp"
-
 #include "cibmodules/cibmodule/Nljs.hpp"
 #include "cibmodules/cibmoduleinfo/InfoNljs.hpp"
 
