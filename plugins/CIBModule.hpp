@@ -43,11 +43,10 @@ namespace dunedaq::cibmodules {
   public:
     /**
      * @brief CTBModule Constructor
-     * @param name Instance name for this CTBModule instance
+     * @param name Instance name for this CIBModule instance
      */
     explicit CIBModule(const std::string& name);
 
-    //void init(const nlohmann::json& iniobj) override;
     void init(const nlohmann::json& iniobj) override;
 
     /**
@@ -86,8 +85,6 @@ namespace dunedaq::cibmodules {
     boost::asio::ip::tcp::endpoint m_endpoint;
 
     std::shared_ptr<dunedaq::hsilibs::HSIEventSender::raw_sender_ct> m_cib_hsi_data_sender;
-    //  std::shared_ptr<dunedaq::hsilibs::HSIEventSender::raw_sender_ct> m_hlt_hsi_data_sender;
-
 
     // Commands
     void do_configure(const nlohmann::json& obj);
@@ -131,13 +128,8 @@ namespace dunedaq::cibmodules {
     std::chrono::steady_clock::time_point m_last_calibration_file_update;
 
     // counters per run
-    //  std::atomic<unsigned long> m_run_gool_part_counter = 0;
     std::atomic<unsigned long> m_run_packet_counter = 0;
     std::atomic<unsigned long> m_run_trigger_counter = 0;
-    // we no longer have timestamp words
-    //  std::atomic<unsigned long> m_run_timestamp_counter = 0;
-    // overall counters
-    //  std::atomic<unsigned int> m_num_TS_words;
     std::atomic<unsigned int> m_num_total_triggers;
 
 
@@ -146,7 +138,7 @@ namespace dunedaq::cibmodules {
     // monitoring data/information
     //
     //
-    std::deque<uint> m_buffer_counts; // NOLINT(build/unsigned)
+    std::deque<uint>  m_buffer_counts; // NOLINT(build/unsigned)
     std::shared_mutex m_buffer_counts_mutex;
     void update_buffer_counts(uint new_count); // NOLINT(build/unsigned)
     double read_average_buffer_counts();
@@ -154,6 +146,12 @@ namespace dunedaq::cibmodules {
     std::atomic<int>      m_num_control_messages_sent;
     std::atomic<int>      m_num_control_responses_received;
     std::atomic<uint64_t> m_last_readout_timestamp; // NOLINT(build/unsigned)
+
+    //
+    // trigger bit to be written into the HSI event
+    //
+    uint32_t m_trigger_bit;
+    uint32_t m_module_instance;
   };
 
 } // namespace dunedaq::cibmodules

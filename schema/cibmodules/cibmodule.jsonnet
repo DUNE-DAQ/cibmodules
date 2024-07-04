@@ -21,7 +21,7 @@ local cibmodule = {
      receiver: s.record("Receiver",  [
         s.field("timeout", self.uint8, 1000, doc="CIB Receiver Connection Timeout value (microseconds)"),
         s.field("host", self.string, "localhost"),
-        s.field("port", self.uint8, 8992),
+        s.field("port", self.uint8, 8991),
      ], doc="Calibration Interface Board Receiver Socket Configuration"),
     
     sockets: s.record("Sockets",  [

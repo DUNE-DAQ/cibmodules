@@ -51,8 +51,12 @@ namespace dunedaq::cibmodules {
                 , m_num_control_messages_sent(0)
                 , m_num_control_responses_received(0)
                 , m_last_readout_timestamp(0)
+                , m_module_instance(0)
+                , m_trigger_bit(0)
 
                 {
+    TLOG_DEBUG(0) << get_name() << ": Instantiating a cibmodule with argument " << name;
+
     register_command("conf", &CIBModule::do_configure);
     register_command("start", &CIBModule::do_start);
     register_command("stop", &CIBModule::do_stop);
@@ -73,8 +77,13 @@ namespace dunedaq::cibmodules {
   CIBModule::init(const nlohmann::json& init_data)
   {
     TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering init() method";
+    TLOG_DEBUG(0) << get_name() << ": Init data :  " << init_data.dump();
+
     HSIEventSender::init(init_data);
+
+
     //FIXME: Do we need to set up something specifically to set up this uuid?
+    // FIXME: I think that we need the setup
     m_cib_hsi_data_sender = get_iom_sender<dunedaq::hsilibs::HSI_FRAME_STRUCT>(appfwk::connection_uid(init_data, "cib_output"));
 
     TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting init() method";
@@ -85,9 +94,16 @@ namespace dunedaq::cibmodules {
   {
 
     TLOG_DEBUG(0) << get_name() << ": Configuring CIB";
+    TLOG_DEBUG(0) << get_name() << ": Received configuration fragment : " << args.dump();
 
     // this is automatically generated out of the jsonnet files in the (config) schema
     m_cfg = args.get<cibmodule::Conf>();
+    TLOG_DEBUG(0) << get_name() << ": Extracted configuration fragment : " << m_cfg.dump();
+
+    m_trigger_bit = m_cfg.cib_trigger_bit;
+    // NFB: We may have an issue here. This instance should be provided at the init stage, not configure
+    m_module_instance = m_cfg.cib_instance;
+
     // set local caches for the variables that are needed to set up the receiving ends
     // remember that on the server side the receiver host is necessary
     m_receiver_port = m_cfg.board_config.sockets.receiver.port;
@@ -95,13 +111,16 @@ namespace dunedaq::cibmodules {
 
     TLOG_DEBUG(0) << get_name() << ": Board receiver network location "
         << m_cfg.board_config.sockets.receiver.host << ':'
-        << m_cfg.board_config.sockets.receiver.port << std::endl;
+        << m_cfg.board_config.sockets.receiver.port;
 
+    TLOG_DEBUG(0) << get_name() << ": trigger bit for this instance : " << m_cfg.cib_trigger_bit;
     // Initialise monitoring variables
     m_num_control_messages_sent = 0;
     m_num_control_responses_received = 0;
 
-    // network connection to cib hardware control
+    // network connection to cib
+    //
+    //
     boost::asio::ip::tcp::resolver resolver( m_control_ios );
     // once again, these are obtained from the configuration
     boost::asio::ip::tcp::resolver::query query(m_cfg.cib_host,
@@ -139,7 +158,7 @@ namespace dunedaq::cibmodules {
     to_json(config, m_cfg.board_config);
     TLOG() << "CONF TEST: \n" << config.dump();
 
-    // FIXME: Actually would prefer to use protobufs, but this is also acceptable
+    // NFB: Actually would prefer to use protobufs, but this is also acceptable
     // but the conversion from jsonnet is simpler
     send_config(config.dump());
   }
@@ -227,14 +246,9 @@ namespace dunedaq::cibmodules {
     std::size_t n_bytes = 0 ;
     std::size_t n_words = 0 ;
 
-    const size_t header_size = sizeof( content::tcp_header_t ) ;
-    const size_t word_size = content::word::word_t::size_bytes ;
-
-    TLOG_DEBUG(TLVL_CIB_MODULE) << get_name() <<  ": Header size: " << header_size << std::endl
-        << "Word size: " << word_size << std::endl;
-
     //connect to socket
-    boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios, boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(), m_receiver_port ) );
+    boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,
+                                            boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(), m_receiver_port ) );
     TLOG_DEBUG(0) << get_name() << ": Waiting for an incoming connection on port " << m_receiver_port << std::endl;
 
     std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket) ; } ) ;
@@ -252,13 +266,13 @@ namespace dunedaq::cibmodules {
     // -- A couple of variables to help in the data parsing
     /**
      * The structure is a bit different than in the CTB
-     * The TCP packet is still wrapped in a header, and there is a timestamp word
-     * marking the last packet
+     * The TCP packet contains a single word (the trigger)
      * But other than that, everything are triggers
      */
-    content::tcp_header_t head ;
-    head.packet_size = 0;
-    content::word::word_t temp_word ;
+
+    dunedaq::cib::daq::iols_tcp_packet_t tcp_packet;
+    dunedaq::cib::daq::iols_trigger_t *trigger;
+
     //boost::system::error_code receiving_error;
     bool connection_closed = false ;
 
@@ -267,93 +281,144 @@ namespace dunedaq::cibmodules {
 
       update_calibration_file();
 
-      if ( ! read( head ) )
+      if ( ! read( tcp_packet ) )
       {
         connection_closed = true ;
         break;
       }
 
-      n_bytes = head.packet_size ;
-      // extract n_words
+      n_bytes = tcp_packet.header.packet_size ;
+      n_words = n_bytes/sizeof(dunedaq::cib::daq::iols_trigger_t);
 
-      n_words = n_bytes / word_size ;
-      // the CIB model is built on the idea that only one word is sent.
-      // although there is nothing wrong if more than one word is sent. It just means that one trigger will be delayed.
-      // yet thatin itself is not an issue, as the DAQ holds the data for far longer than any delay that could be accumulated
-      // on the CIB side (< ms)
-      if (n_words > 1)
+      if (n_words != 1)
       {
-        TLOG_DEBUG(0) << get_name() <<  ": Received more than one word in a single packet : " << n_words << std::endl;
+        TLOG_DEBUG(0) << "Received more than one IoLS trigger word at once! This should never happen.";
       }
+      // on the latest release the CIB only ships one word per packet.
 
       update_buffer_counts(n_words);
 
-      for ( unsigned int i = 0 ; i < n_words ; ++i )
+
+      if ( m_calibration_stream_enable )
       {
-        //read a word
-        if ( ! read( temp_word ) )
-        {
-          connection_closed = true ;
-          break ;
-        }
-        // put it in the calibration stream
-        if ( m_calibration_stream_enable )
-        {
-          m_calibration_file.write( reinterpret_cast<const char*>( & temp_word ), word_size ) ; // NOLINT
-          m_calibration_file.flush() ;
-        }
-        // we don't really need a word type any more
-        // there is only one word type being sent (trigger)
-        if (temp_word.word_type == content::word::t_trigger)
-        {
-          TLOG_DEBUG(3) << "Received IoLS trigger word!";
-          ++m_num_total_triggers;
-          ++m_run_trigger_counter;
-          content::word::trigger_t * trigger_word = reinterpret_cast<content::word::trigger_t*>( & temp_word ) ; // NOLINT
+        m_calibration_file.write( reinterpret_cast<const char*>( & tcp_packet.word ), sizeof(tcp_packet.word) ) ; // NOLINT
+        m_calibration_file.flush() ;
+      }
 
-          m_last_readout_timestamp = trigger_word->timestamp;
-          // we do not need to knwo anything else
-          // ideally, one could add other information such as the direction
-          // this should be coming packed in the trigger word
-          // note, however, that to reconstruct the trace direction we also would need the source position
-          // and that we cannot afford to send, so we can just make it up out of the
-          // IoLS system
-          //
-          // Send HSI data to a DLH
-          std::array<uint32_t, 7> hsi_struct;
-          hsi_struct[0] = (0x1 << 26) | (0x1 << 6) | 0x1; // DAQHeader, frame version: 1, det id: 1, link for low level 0, link for high level 1, leave slot and crate as 0
-          hsi_struct[1] = trigger_word->timestamp & 0xFFFFFF;       // ts low
-          hsi_struct[2] = trigger_word->timestamp >> 32; // ts high
-          // we could use these 2 sets of 32 bits to identify the direction
-          // TODO Nuno Barros Apr-02-2024: Propose to change this to include additional information
-          // these 64 bits could be used to define a direction
-          hsi_struct[3] = 0x0;                      // lower 32b
-          hsi_struct[4] = 0x0;                      // upper 32b
-          hsi_struct[5] = trigger_word->trigger_word;    // trigger_map;
-          hsi_struct[6] = m_run_trigger_counter;         // m_generated_counter;
+      TLOG_DEBUG(3) << "Received IoLS trigger word!";
+      ++m_num_total_triggers;
+      ++m_run_trigger_counter;
 
-          TLOG_DEBUG(4) << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
-              << std::hex
-              << "0x"   << hsi_struct[0]
-              << ", 0x" << hsi_struct[1]
-              << ", 0x" << hsi_struct[2]
-              << ", 0x" << hsi_struct[3]
-              << ", 0x" << hsi_struct[4]
-              << ", 0x" << hsi_struct[5]
-              << ", 0x" << hsi_struct[6]
-              << "\n";
+      m_last_readout_timestamp = tcp_packet.word.timestamp;
 
-          send_raw_hsi_data(hsi_struct, m_cib_hsi_data_sender.get());
+      // we do not need to know anything else
+      // ideally, one could add other information such as the direction
+      // this should be coming packed in the trigger word
+      // note, however, that to reconstruct the trace direction we also would need the source position
+      // and that we cannot afford to send, so we can just make it up out of the
+      // IoLS system
+      //
+      // Send HSI data to a DLH
+      std::array<uint32_t, 7> hsi_struct;
+      hsi_struct[0] = (0x1 << 26) | (0x1 << 6) | 0x1; // DAQHeader, frame version: 1, det id: 1, link for low level 0, link for high level 1, leave slot and crate as 0
+      hsi_struct[1] = tcp_packet.word.timestamp & 0xFFFFFF;       // ts low
+      hsi_struct[2] = tcp_packet.word.timestamp >> 32;            // ts high
+      // we could use these 2 sets of 32 bits to identify the direction
+      // TODO Nuno Barros Apr-02-2024: Propose to change this to include additional information
+      // these 64 bits could be used to define a direction
+      hsi_struct[3] = 0x0;                      // lower 32b
+      hsi_struct[4] = 0x0;                      // upper 32b
+      hsi_struct[5] = m_trigger_bit;            // trigger_map;
+      hsi_struct[6] = m_run_trigger_counter;    // m_generated_counter;
 
-          // TODO Nuno Barros Apr-02-2024 : properly fill device id
-          dfmessages::HSIEvent event = dfmessages::HSIEvent(0x1,
-                                                            trigger_word->trigger_word,
-                                                            trigger_word->timestamp,
-                                                            m_run_trigger_counter, m_run_number);
-          send_hsi_event(event);
+      TLOG_DEBUG(4) << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
+          << std::hex
+          << "0x"   << hsi_struct[0]
+          << ", 0x" << hsi_struct[1]
+          << ", 0x" << hsi_struct[2]
+          << ", 0x" << hsi_struct[3]
+          << ", 0x" << hsi_struct[4]
+          << ", 0x" << hsi_struct[5]
+          << ", 0x" << hsi_struct[6]
+          << "\n";
 
-        }
-      } // n_words loop
+      send_raw_hsi_data(hsi_struct, m_cib_hsi_data_sender.get());
+
+      // TODO Nuno Barros Apr-02-2024 : properly fill device id
+      dfmessages::HSIEvent event = dfmessages::HSIEvent(0x1,
+                                                        trigger_word->trigger_word,
+                                                        trigger_word->timestamp,
+                                                        m_run_trigger_counter, m_run_number);
+      send_hsi_event(event);
+
+//
+//      // -- old code
+//      //      for ( unsigned int i = 0 ; i < n_words ; ++i )
+//      //      {
+//        //read a word
+//        if ( ! read( temp_word ) )
+//        {
+//          connection_closed = true ;
+//          break ;
+//        }
+//        // put it in the calibration stream
+//        if ( m_calibration_stream_enable )
+//        {
+//          m_calibration_file.write( reinterpret_cast<const char*>( & temp_word ), word_size ) ; // NOLINT
+//          m_calibration_file.flush() ;
+//        }
+//        // we don't really need a word type any more
+//        // there is only one word type being sent (trigger)
+//        if (temp_word.word_type == content::word::t_trigger)
+//        {
+//          TLOG_DEBUG(3) << "Received IoLS trigger word!";
+//          ++m_num_total_triggers;
+//          ++m_run_trigger_counter;
+//          content::word::trigger_t * trigger_word = reinterpret_cast<content::word::trigger_t*>( & temp_word ) ; // NOLINT
+//
+//          m_last_readout_timestamp = trigger_word->timestamp;
+//          // we do not need to knwo anything else
+//          // ideally, one could add other information such as the direction
+//          // this should be coming packed in the trigger word
+//          // note, however, that to reconstruct the trace direction we also would need the source position
+//          // and that we cannot afford to send, so we can just make it up out of the
+//          // IoLS system
+//          //
+//          // Send HSI data to a DLH
+//          std::array<uint32_t, 7> hsi_struct;
+//          hsi_struct[0] = (0x1 << 26) | (0x1 << 6) | 0x1; // DAQHeader, frame version: 1, det id: 1, link for low level 0, link for high level 1, leave slot and crate as 0
+//          hsi_struct[1] = trigger_word->timestamp & 0xFFFFFF;       // ts low
+//          hsi_struct[2] = trigger_word->timestamp >> 32; // ts high
+//          // we could use these 2 sets of 32 bits to identify the direction
+//          // TODO Nuno Barros Apr-02-2024: Propose to change this to include additional information
+//          // these 64 bits could be used to define a direction
+//          hsi_struct[3] = 0x0;                      // lower 32b
+//          hsi_struct[4] = 0x0;                      // upper 32b
+//          hsi_struct[5] = trigger_word->trigger_word;    // trigger_map;
+//          hsi_struct[6] = m_run_trigger_counter;         // m_generated_counter;
+//
+//          TLOG_DEBUG(4) << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
+//              << std::hex
+//              << "0x"   << hsi_struct[0]
+//              << ", 0x" << hsi_struct[1]
+//              << ", 0x" << hsi_struct[2]
+//              << ", 0x" << hsi_struct[3]
+//              << ", 0x" << hsi_struct[4]
+//              << ", 0x" << hsi_struct[5]
+//              << ", 0x" << hsi_struct[6]
+//              << "\n";
+//
+//          send_raw_hsi_data(hsi_struct, m_cib_hsi_data_sender.get());
+//
+//          // TODO Nuno Barros Apr-02-2024 : properly fill device id
+//          dfmessages::HSIEvent event = dfmessages::HSIEvent(0x1,
+//                                                            trigger_word->trigger_word,
+//                                                            trigger_word->timestamp,
+//                                                            m_run_trigger_counter, m_run_number);
+//          send_hsi_event(event);
+//
+//        }
+//      } // n_words loop
 
       if ( connection_closed )
       {
