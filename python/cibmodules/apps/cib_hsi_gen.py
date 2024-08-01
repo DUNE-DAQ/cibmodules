@@ -52,7 +52,7 @@ def get_cib_hsi_app(nickname,
     lconf = cib.Conf(cib_trigger_bit=conf.trigger, 
                      cib_host=conf.cib_host, 
                      cib_port=conf.cib_port,
-                     board_config=cib.Board_config(sockets=cib.Sockets(receiver=cib.Receiver(host=conf.host))))
+                     board_config=cib.Config(sockets=cib.Sockets(receiver=cib.Receiver(host=conf.host))))
 
     # Should one of these be made per CIB module?
     # In principle there should be no need for more than one please

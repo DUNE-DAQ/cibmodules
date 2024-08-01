@@ -98,7 +98,9 @@ namespace dunedaq::cibmodules {
 
     // this is automatically generated out of the jsonnet files in the (config) schema
     m_cfg = args.get<cibmodule::Conf>();
-    TLOG_DEBUG(0) << get_name() << ": Extracted configuration fragment : " << m_cfg.dump();
+    nlohmann::json tmp_cfg(m_cfg);
+
+    TLOG_DEBUG(0) << get_name() << ": Extracted configuration fragment : " << tmp_cfg.dump();
 
     m_trigger_bit = m_cfg.cib_trigger_bit;
     // NFB: We may have an issue here. This instance should be provided at the init stage, not configure
@@ -346,8 +348,8 @@ namespace dunedaq::cibmodules {
 
       // TODO Nuno Barros Apr-02-2024 : properly fill device id
       dfmessages::HSIEvent event = dfmessages::HSIEvent(0x1,
-                                                        trigger_word->trigger_word,
-                                                        trigger_word->timestamp,
+                                                        m_trigger_bit,
+                                                        tcp_packet.word.timestamp,
                                                         m_run_trigger_counter, m_run_number);
       send_hsi_event(event);
 

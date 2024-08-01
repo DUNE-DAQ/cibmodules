@@ -12,12 +12,9 @@ extern "C"
 #include <inttypes.h>
 }
 #include <cstdint>
-#include <mem_utils.h>
 
 #ifdef CIB_DUNEDAQ
 namespace dunedaq {
-  namespace dunedaq {
-
 #endif
 
   namespace cib
@@ -90,27 +87,6 @@ namespace dunedaq {
 
         static size_t const size_bytes = 16;
 
-
-        int32_t get_pos_m1() {return cib::util::cast_to_signed(pos_m1,bitmask_m1);}
-        int32_t get_pos_m3() {return cib::util::cast_to_signed(pos_m3,mask_m3);}
-        int32_t get_pos_m2()
-        {
-          uint32_t m2_lsb = pos_m2_lsb;
-          uint32_t m2_msb = pos_m2_msb;
-          uint32_t m2 = (m2_msb << 15) | pos_m2_lsb;
-          // the bitmask is the same
-          return cib::util::cast_to_signed(m2,bitmask_m2);
-        }
-        void set_pos_m1(int32_t v) {pos_m1 = cib::util::cast_from_signed(v,bitmask_m1);}
-        void set_pos_m3(int32_t v) {pos_m3 = cib::util::cast_from_signed(v,bitmask_m3);}
-        void set_pos_m2(int32_t v)
-        {
-          uint32_t tmp = cib::util::cast_from_signed(v,bitmask_m2);
-          pos_m2_lsb = (tmp & bitmask_m2_lsb);
-          pos_m2_msb = ((tmp & bitmask_m2_msb) >> 15);
-        }
-
-        //uint8_t *get_bytes() {return reinterpret_cast<uint8_t*>(&(*this));}
       } iols_trigger_t;
 
       ///

@@ -35,7 +35,7 @@ local cibmodule = {
     ], doc="Central Trigger Board Misc Configuration"),
     	
   
-    config: s.record("Config",  [
+    board_config: s.record("Config",  [
 			s.field("sockets", self.sockets, self.sockets),
 			s.field("misc", self.misc, self.misc),
         ], doc="Calibration Interface Board Configuration Wrapper"),

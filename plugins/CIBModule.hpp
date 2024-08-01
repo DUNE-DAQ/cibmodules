@@ -150,8 +150,8 @@ namespace dunedaq::cibmodules {
     //
     // trigger bit to be written into the HSI event
     //
-    uint32_t m_trigger_bit;
     uint32_t m_module_instance;
+    uint32_t m_trigger_bit;
   };
 
 } // namespace dunedaq::cibmodules
