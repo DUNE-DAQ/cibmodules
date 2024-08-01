@@ -157,7 +157,11 @@ namespace dunedaq::cibmodules {
     nlohmann::json config;
     config["command"] = "config";
     config["config"] = nlohmann::json();
-    to_json(config, m_cfg.board_config);
+    nlohmann::json tmp_config;
+
+    to_json(tmp_config, m_cfg.board_config);
+    config["config"] = tmp_config;
+
     TLOG() << "CONF TEST: \n" << config.dump();
 
     // NFB: Actually would prefer to use protobufs, but this is also acceptable
