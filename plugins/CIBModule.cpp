@@ -158,14 +158,14 @@ namespace dunedaq::cibmodules {
 
     // create the json string out of the config fragment
     nlohmann::json config;
-    config["command"] = "config";
-    config["config"] = nlohmann::json();
-    nlohmann::json tmp_config;
+//    config["command"] = "config";
+//    config["config"] = nlohmann::json();
+//    nlohmann::json tmp_config;
 
-    to_json(tmp_config, m_cfg.board_config);
-    config["config"] = tmp_config;
+    to_json(config, m_cfg.board_config);
+//    config["config"] = tmp_config;
 
-    TLOG() << "CONF TEST: \n" << config.dump();
+//    TLOG() << "CONF TEST: \n" << config.dump();
 
     // NFB: Actually would prefer to use protobufs, but this is also acceptable
     // but the conversion from jsonnet is simpler
@@ -558,11 +558,11 @@ namespace dunedaq::cibmodules {
 
     if ( m_is_configured.load() )
     {
-      TLOG_DEBUG(1) << get_name() << ": Resetting before configuring" << std::endl;
+      TLOG() << get_name() << ": Resetting before configuring" << std::endl;
       send_reset();
     }
 
-    TLOG_DEBUG(1) << get_name() << ": Sending config" << std::endl;
+    TLOG() << get_name() << ": Sending config" << std::endl;
 
     // structure the message to have a common management structure
     //json receiver = doc.at("ctb").at("sockets").at("receiver");
@@ -570,6 +570,8 @@ namespace dunedaq::cibmodules {
     nlohmann::json conf;
     conf["command"] = "config";
     conf["config"] = nlohmann::json::parse(config);
+
+    TLOG() << get_name() << ": Shipped config : " << conf.dump() << std::endl;
 
     if ( send_message( conf.dump() ) )
     {
