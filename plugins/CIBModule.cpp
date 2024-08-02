@@ -44,7 +44,7 @@ namespace dunedaq::cibmodules {
                 , m_control_socket(m_control_ios)
                 , m_receiver_socket(m_receiver_ios)
                 , m_thread_(std::bind(&CIBModule::do_hsi_work, this, std::placeholders::_1))
-                , m_run_packet_counter(0)
+//                , m_run_packet_counter(0)
                 , m_run_trigger_counter(0)
                 , m_num_total_triggers(0)
 
@@ -251,9 +251,16 @@ namespace dunedaq::cibmodules {
     //store_run_trigger_counters( m_run_number ) ;
     m_thread_.stop_working_thread();
 
+    // -- print the counters for local info
+    TLOG() << get_name() << " Counter summary after run [" << m_run_number << "]:\n\n"
+        << "IOLS trigger counter in run : " << m_run_trigger_counter << "\n"
+//        << "IOLS packet counter in run  : " << m_run_packet_counter << "\n"
+        << "Global IOLS trigger count   : " << m_num_total_triggers << std::endl;
+
+
     // reset counters
     m_run_trigger_counter=0;
-    m_run_packet_counter=0;
+//    m_run_packet_counter=0;
 
     //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_stop() method";
     TLOG() << get_name() << ": Exiting do_stop() method";
@@ -267,6 +274,8 @@ namespace dunedaq::cibmodules {
     TLOG() << get_name() << ": Entering do_work() method";
     std::size_t n_bytes = 0 ;
     std::size_t n_words = 0 ;
+    std::size_t prev_seq = 0 ;
+    bool first = true;
 
     //connect to socket
     boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,
@@ -314,9 +323,47 @@ namespace dunedaq::cibmodules {
 
       if (n_words != 1)
       {
-        TLOG() << "Received more than one IoLS trigger word at once! This should never happen.";
+        TLOG() << "Received more than one IoLS trigger word at once! This should never happen. Got "
+            << n_bytes << " (expected " << sizeof(dunedaq::cib::daq::iols_trigger_t) << ")";
       }
-      // on the latest release the CIB only ships one word per packet.
+      // on the latest release the CIB only ships one word per packet....so this error should be impossible
+      // check continuity of the sequence numbers
+      if (first)
+      {
+        // first word being fetched. The sequence number should be zero
+        if (tcp_packet.header.sequence_id != 0)
+        {
+          std::ostringstream msg("");
+          msg << "Missing sequence. First word should have sequence number 0. Got " << static_cast<int>(tcp_packet.header.sequence_id );
+          ers::warning(CIBMessage(ERS_HERE, msg.str()));
+        }
+        first = false;
+      }
+      else
+      {
+        bool failed = false;
+        // in case it rolled over, compare to 255
+        if (tcp_packet.header.sequence_id == 0)
+        {
+          if (prev_seq != 255)
+          {
+            failed = true;
+          }
+        }
+        else
+        {
+          if (tcp_packet.header.sequence_id != (prev_seq+1))
+          {
+            failed = true;
+          }
+        }
+        if (failed)
+        {
+          std::ostringstream msg("");
+          msg << "Skipped CIB word sequence. Prev word " << prev_seq << " current word " << static_cast<int>(tcp_packet.header.sequence_id );
+          ers::warning(CIBMessage(ERS_HERE, msg.str()));
+        }
+      }
 
       update_buffer_counts(n_words);
 
@@ -372,6 +419,7 @@ namespace dunedaq::cibmodules {
       send_raw_hsi_data(hsi_struct, m_cib_hsi_data_sender.get());
 
       // TODO Nuno Barros Apr-02-2024 : properly fill device id
+      // still need to figure this one out.
       dfmessages::HSIEvent event = dfmessages::HSIEvent(0x1,
                                                         m_trigger_bit,
                                                         tcp_packet.word.timestamp,

@@ -128,7 +128,7 @@ namespace dunedaq::cibmodules {
     std::chrono::steady_clock::time_point m_last_calibration_file_update;
 
     // counters per run
-    std::atomic<unsigned long> m_run_packet_counter = 0;
+//    std::atomic<unsigned long> m_run_packet_counter = 0;
     std::atomic<unsigned long> m_run_trigger_counter = 0;
     std::atomic<unsigned int> m_num_total_triggers;
 
