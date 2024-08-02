@@ -276,7 +276,7 @@ namespace dunedaq::cibmodules {
     std::size_t n_words = 0 ;
     std::size_t prev_seq = 0 ;
     bool first = true;
-
+    uint32_t signal;
     //connect to socket
     boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,
                                             boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(), m_receiver_port ) );
@@ -364,6 +364,7 @@ namespace dunedaq::cibmodules {
           ers::warning(CIBMessage(ERS_HERE, msg.str()));
         }
       }
+      prev_seq = tcp_packet.header.sequence_id;
 
       update_buffer_counts(n_words);
 
@@ -379,7 +380,7 @@ namespace dunedaq::cibmodules {
       ++m_run_trigger_counter;
 
       m_last_readout_timestamp = tcp_packet.word.timestamp;
-
+      signal = 0x1 << m_trigger_bit;
       // we do not need to know anything else
       // ideally, one could add other information such as the direction
       // this should be coming packed in the trigger word
@@ -402,7 +403,7 @@ namespace dunedaq::cibmodules {
 
       hsi_struct[3] = 0x0;                      // lower 32b
       hsi_struct[4] = 0x0;                      // upper 32b
-      hsi_struct[5] = 0x1 << m_trigger_bit;            // trigger_map;
+      hsi_struct[5] = signal;            // trigger_map;
       hsi_struct[6] = m_run_trigger_counter;    // m_generated_counter;
 
       TLOG() << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
@@ -421,7 +422,7 @@ namespace dunedaq::cibmodules {
       // TODO Nuno Barros Apr-02-2024 : properly fill device id
       // still need to figure this one out.
       dfmessages::HSIEvent event = dfmessages::HSIEvent(0x1,
-                                                        m_trigger_bit,
+                                                        signal,
                                                         tcp_packet.word.timestamp,
                                                         m_run_trigger_counter, m_run_number);
       send_hsi_event(event);
