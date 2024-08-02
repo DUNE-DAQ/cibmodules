@@ -120,7 +120,7 @@ namespace dunedaq::cibmodules {
 
     TLOG() << get_name() << ": Extracted configuration fragment : " << tmp_cfg.dump();
 
-    m_trigger_bit = m_cfg.cib_trigger_bit;
+    m_trigger_bit = 0x1 << m_cfg.cib_trigger_bit;
     // NFB: We may have an issue here. This instance should be provided at the init stage, not configure
     m_module_instance = m_cfg.cib_instance;
 
@@ -131,9 +131,11 @@ namespace dunedaq::cibmodules {
 
     TLOG() << get_name() << ": Board receiver network location "
         << m_cfg.board_config.sockets.receiver.host << ':'
-        << m_cfg.board_config.sockets.receiver.port;
+        << m_cfg.board_config.sockets.receiver.port
+        << " (timeout = " << m_cfg.board_config.sockets.receiver.timeout << ")";
 
-    TLOG() << get_name() << ": trigger bit for this instance : " << m_cfg.cib_trigger_bit;
+    TLOG() << get_name() << ": trigger bit for this instance : " << m_cfg.cib_trigger_bit
+        << " (" << std::hex << m_trigger_bit << std::dec << ")";
     // Initialise monitoring variables
     m_num_control_messages_sent = 0;
     m_num_control_responses_received = 0;
@@ -315,6 +317,10 @@ namespace dunedaq::cibmodules {
       if ( accepting.wait_for( m_receiver_timeout ) == std::future_status::ready )
       {
         break ;
+      }
+      else
+      {
+        TLOG() << "Waiting for a bit longer";
       }
     }
 
