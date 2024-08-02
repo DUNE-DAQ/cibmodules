@@ -42,6 +42,11 @@ ERS_DECLARE_ISSUE(cibmodules,
                   " CIB in the wrong state: " << descriptor,
                   ((std::string)descriptor))
 
+ERS_DECLARE_ISSUE(cibmodules,
+                  CIBProcError,
+                  " CIB process error: " << descriptor,
+                  ((std::string)descriptor))
+
 
 // Re-enable coverage collection LCOV_EXCL_STOP
 

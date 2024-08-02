@@ -152,7 +152,7 @@ namespace dunedaq::cibmodules {
     //
     uint32_t m_module_instance;
     uint32_t m_trigger_bit;
-
+    std::atomic<bool> m_receiver_ready;
   };
 
 } // namespace dunedaq::cibmodules

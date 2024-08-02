@@ -213,6 +213,17 @@ namespace dunedaq::cibmodules {
       run << "run" << start_params.run;
       set_calibration_stream(run.str()) ;
     }
+    int cnt = 0;
+    while(!m_receiver_ready.load())
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      cnt++;
+      if (cnt > 50)
+      {
+        // the socket didn't get ready on time
+        throw CIBProcError(ERS_HERE,"Receiver socket timed out before becoming ready.");
+      }
+    }
     nlohmann::json cmd;
     cmd["command"] = "start_run";
     cmd["run_number"] = start_params.run;
@@ -278,11 +289,24 @@ namespace dunedaq::cibmodules {
     bool first = true;
     uint32_t signal;
     //connect to socket
+    boost::system::error_code ec;
+
     boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,
-                                            boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(), m_receiver_port ) );
+                                            boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(),
+                                                                            m_receiver_port ), ec );
+
+    if (ec)
+    {
+      std::stringstream msg;
+      msg << "Socket opening failed:: " << ec.message();
+      ers::error(CIBCommunicationError(ERS_HERE,msg.str()));
+      return;
+    }
+
     TLOG() << get_name() << ": Waiting for an incoming connection on port " << m_receiver_port << std::endl;
 
     std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket) ; } ) ;
+    m_receiver_ready.store(true);
 
     while ( running_flag.load() )
     {
@@ -427,75 +451,6 @@ namespace dunedaq::cibmodules {
                                                         m_run_trigger_counter, m_run_number);
       send_hsi_event(event);
 
-//
-//      // -- old code
-//      //      for ( unsigned int i = 0 ; i < n_words ; ++i )
-//      //      {
-//        //read a word
-//        if ( ! read( temp_word ) )
-//        {
-//          connection_closed = true ;
-//          break ;
-//        }
-//        // put it in the calibration stream
-//        if ( m_calibration_stream_enable )
-//        {
-//          m_calibration_file.write( reinterpret_cast<const char*>( & temp_word ), word_size ) ; // NOLINT
-//          m_calibration_file.flush() ;
-//        }
-//        // we don't really need a word type any more
-//        // there is only one word type being sent (trigger)
-//        if (temp_word.word_type == content::word::t_trigger)
-//        {
-//          TLOG_DEBUG(3) << "Received IoLS trigger word!";
-//          ++m_num_total_triggers;
-//          ++m_run_trigger_counter;
-//          content::word::trigger_t * trigger_word = reinterpret_cast<content::word::trigger_t*>( & temp_word ) ; // NOLINT
-//
-//          m_last_readout_timestamp = trigger_word->timestamp;
-//          // we do not need to knwo anything else
-//          // ideally, one could add other information such as the direction
-//          // this should be coming packed in the trigger word
-//          // note, however, that to reconstruct the trace direction we also would need the source position
-//          // and that we cannot afford to send, so we can just make it up out of the
-//          // IoLS system
-//          //
-//          // Send HSI data to a DLH
-//          std::array<uint32_t, 7> hsi_struct;
-//          hsi_struct[0] = (0x1 << 26) | (0x1 << 6) | 0x1; // DAQHeader, frame version: 1, det id: 1, link for low level 0, link for high level 1, leave slot and crate as 0
-//          hsi_struct[1] = trigger_word->timestamp & 0xFFFFFF;       // ts low
-//          hsi_struct[2] = trigger_word->timestamp >> 32; // ts high
-//          // we could use these 2 sets of 32 bits to identify the direction
-//          // TODO Nuno Barros Apr-02-2024: Propose to change this to include additional information
-//          // these 64 bits could be used to define a direction
-//          hsi_struct[3] = 0x0;                      // lower 32b
-//          hsi_struct[4] = 0x0;                      // upper 32b
-//          hsi_struct[5] = trigger_word->trigger_word;    // trigger_map;
-//          hsi_struct[6] = m_run_trigger_counter;         // m_generated_counter;
-//
-//          TLOG_DEBUG(4) << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
-//              << std::hex
-//              << "0x"   << hsi_struct[0]
-//              << ", 0x" << hsi_struct[1]
-//              << ", 0x" << hsi_struct[2]
-//              << ", 0x" << hsi_struct[3]
-//              << ", 0x" << hsi_struct[4]
-//              << ", 0x" << hsi_struct[5]
-//              << ", 0x" << hsi_struct[6]
-//              << "\n";
-//
-//          send_raw_hsi_data(hsi_struct, m_cib_hsi_data_sender.get());
-//
-//          // TODO Nuno Barros Apr-02-2024 : properly fill device id
-//          dfmessages::HSIEvent event = dfmessages::HSIEvent(0x1,
-//                                                            trigger_word->trigger_word,
-//                                                            trigger_word->timestamp,
-//                                                            m_run_trigger_counter, m_run_number);
-//          send_hsi_event(event);
-//
-//        }
-//      } // n_words loop
-
       if ( connection_closed )
       {
         break ;
@@ -526,6 +481,7 @@ namespace dunedaq::cibmodules {
       ers::error(CIBCommunicationError(ERS_HERE,msg.str()));
     }
 
+    m_receiver_ready.store(false);
 
     //TLOG_DEBUG(TLVL_CIB_MODULE) << get_name() << ": End of do_work loop: stop receiving data from the CIB";
     TLOG() << get_name() << ": End of do_work loop: stop receiving data from the CIB";
