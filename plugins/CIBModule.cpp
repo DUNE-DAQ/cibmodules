@@ -224,6 +224,8 @@ namespace dunedaq::cibmodules {
         throw CIBProcError(ERS_HERE,"Receiver socket timed out before becoming ready.");
       }
     }
+    TLOG() << get_name() << ": All ready to signal the CIB";
+
     nlohmann::json cmd;
     cmd["command"] = "start_run";
     cmd["run_number"] = start_params.run;
