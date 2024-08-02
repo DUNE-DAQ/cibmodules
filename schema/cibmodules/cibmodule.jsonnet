@@ -42,7 +42,7 @@ local cibmodule = {
   
     
     conf: s.record("Conf", [
-    		s.field("cib_trigger_bit", self.trigger_bit_selector, default=0, doc="Associated trigger bit" ),
+    		s.field("cib_trigger_bit", self.trigger_bit_selector, default=25, doc="Associated trigger bit" ),
     		s.field("cib_instance", self.uint4, 0, doc="CIB instance"),
 	        s.field("cib_host", self.string, "np04-iols-cib-01", doc="CIB Hostname"),
 	        s.field("cib_port", self.uint4, 8992, doc="CIB Connection Port"),

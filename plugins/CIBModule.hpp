@@ -152,6 +152,7 @@ namespace dunedaq::cibmodules {
     //
     uint32_t m_module_instance;
     uint32_t m_trigger_bit;
+
   };
 
 } // namespace dunedaq::cibmodules

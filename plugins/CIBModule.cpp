@@ -56,6 +56,7 @@ namespace dunedaq::cibmodules {
 
                 {
     //TLOG()
+    // we can infer the instance from the name
     TLOG() << get_name() << ": Instantiating a cibmodule with argument " << name;
 
     register_command("conf", &CIBModule::do_configure);
@@ -71,21 +72,35 @@ namespace dunedaq::cibmodules {
       // this should also take care of closing the streaming socket
       do_stop(stopobj);
     }
+    TLOG() << get_name() << ": Closing the control socket " << std::endl;
     m_control_socket.close() ;
   }
 
   void
   CIBModule::init(const nlohmann::json& init_data)
   {
+
+    /**
+     * Typical contents of init_data
+     *
+    {"conn_refs":[
+                  { "name":"hsievents",
+                    "uid":"cib_hsievents"
+                  },
+                  {"name":"cib_output",
+                    "uid":"cib0.cib_output_to_cib_datahandler.raw_input"
+                  }
+                  ]
+     }
+     *
+     */
     //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering init() method";
     TLOG() << get_name() << ": Entering init() method";
     TLOG() << get_name() << ": Init data :  " << init_data.dump();
 
     HSIEventSender::init(init_data);
 
-
-    //FIXME: Do we need to set up something specifically to set up this uuid?
-    // FIXME: I think that we need the setup
+    //FIXME: Verify that this is going to the right place
     m_cib_hsi_data_sender = get_iom_sender<dunedaq::hsilibs::HSI_FRAME_STRUCT>(appfwk::connection_uid(init_data, "cib_output"));
 
     //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting init() method";
@@ -123,13 +138,17 @@ namespace dunedaq::cibmodules {
     m_num_control_messages_sent = 0;
     m_num_control_responses_received = 0;
 
-    // network connection to cib
     //
+    // network connection to cib
     //
     boost::asio::ip::tcp::resolver resolver( m_control_ios );
     // once again, these are obtained from the configuration
+    // FIXME: Potential problem: if multiple instances
+    //        are running, there is a chance that both run on the same machine
+    //        in which case the port needs to be updated
+    // //"np04-iols-cib-01", 8991
     boost::asio::ip::tcp::resolver::query query(m_cfg.cib_host,
-                                                std::to_string(m_cfg.cib_port) ) ; //"np04-iols-cib-01", 8991
+                                                std::to_string(m_cfg.cib_port) ) ;
     boost::asio::ip::tcp::resolver::iterator iter = resolver.resolve(query) ;
 
     m_endpoint = iter->endpoint();
@@ -158,17 +177,9 @@ namespace dunedaq::cibmodules {
 
     // create the json string out of the config fragment
     nlohmann::json config;
-//    config["command"] = "config";
-//    config["config"] = nlohmann::json();
-//    nlohmann::json tmp_config;
-
     to_json(config, m_cfg.board_config);
-//    config["config"] = tmp_config;
 
-//    TLOG() << "CONF TEST: \n" << config.dump();
-
-    // NFB: Actually would prefer to use protobufs, but this is also acceptable
-    // but the conversion from jsonnet is simpler
+    //    TLOG() << "CONF TEST: \n" << config.dump();
     send_config(config.dump());
   }
 
@@ -332,14 +343,19 @@ namespace dunedaq::cibmodules {
       // Send HSI data to a DLH
       std::array<uint32_t, 7> hsi_struct;
       hsi_struct[0] = (0x1 << 26) | (0x1 << 6) | 0x1; // DAQHeader, frame version: 1, det id: 1, link for low level 0, link for high level 1, leave slot and crate as 0
-      hsi_struct[1] = tcp_packet.word.timestamp & 0xFFFFFF;       // ts low
+      hsi_struct[1] = tcp_packet.word.timestamp & 0xFFFFFFFF;       // ts low
       hsi_struct[2] = tcp_packet.word.timestamp >> 32;            // ts high
       // we could use these 2 sets of 32 bits to identify the direction
       // TODO Nuno Barros Apr-02-2024: Propose to change this to include additional information
       // these 64 bits could be used to define a direction
+      /**
+       * A note about the 5th entry
+       * The trigger bit is actually mapped into a single bit, that is then remapped back
+       */
+
       hsi_struct[3] = 0x0;                      // lower 32b
       hsi_struct[4] = 0x0;                      // upper 32b
-      hsi_struct[5] = m_trigger_bit;            // trigger_map;
+      hsi_struct[5] = 0x1 << m_trigger_bit;            // trigger_map;
       hsi_struct[6] = m_run_trigger_counter;    // m_generated_counter;
 
       TLOG() << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
@@ -474,7 +490,9 @@ namespace dunedaq::cibmodules {
   {
 
     boost::system::error_code receiving_error;
-    boost::asio::read( m_receiver_socket, boost::asio::buffer( &obj, sizeof(T) ), receiving_error ) ;
+    boost::asio::read( m_receiver_socket,
+                       boost::asio::buffer( &obj, sizeof(T) ),
+                       receiving_error ) ;
 
     if ( ! receiving_error )
     {
@@ -591,19 +609,6 @@ namespace dunedaq::cibmodules {
     TLOG_DEBUG(1) << get_name() << ": NOT Sending a reset" << std::endl;
 
     return;
-
-    //    // actually, we do not want to do this to the CIB
-    //    // the reset should go through the slow control
-    //    if(send_message( "{\"command\":\"HardReset\"}" ))
-    //    {
-    //
-    //      m_is_running.store(false);
-    //      m_is_configured.store(false);
-    //
-    //    }
-    //    else{
-    //      ers::error(CTBCommunicationError(ERS_HERE, "Unable to reset CTB"));
-    //    }
 
   }
 
