@@ -293,8 +293,11 @@ namespace dunedaq::cibmodules {
 
     boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,
                                             boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(),
-                                                                            m_receiver_port ), ec );
+                                                                            m_receiver_port ) );
 
+    TLOG() << get_name() << ": Waiting for an incoming connection on port " << m_receiver_port << std::endl;
+
+    std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket,ec) ; } ) ;
     if (ec)
     {
       std::stringstream msg;
@@ -303,9 +306,6 @@ namespace dunedaq::cibmodules {
       return;
     }
 
-    TLOG() << get_name() << ": Waiting for an incoming connection on port " << m_receiver_port << std::endl;
-
-    std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket) ; } ) ;
     m_receiver_ready.store(true);
 
     while ( running_flag.load() )
