@@ -299,8 +299,8 @@ namespace dunedaq::cibmodules {
     boost::asio::ip::tcp::endpoint ep( boost::asio::ip::tcp::v4(),port );
 
     boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,ep);
-
     TLOG() << get_name() << ": Waiting for an incoming connection on port " << port << std::endl;
+    m_receiver_ios.run();
 
     std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket,ec) ; } ) ;
     if (ec)
