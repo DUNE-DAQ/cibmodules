@@ -69,6 +69,7 @@ namespace dunedaq::cibmodules {
     std::atomic<bool> m_is_configured;
 
     /*const */unsigned int m_receiver_port;
+
     std::chrono::microseconds m_receiver_timeout;
 
 
@@ -81,8 +82,8 @@ namespace dunedaq::cibmodules {
     boost::asio::io_service m_control_ios;
     boost::asio::io_service m_receiver_ios;
     boost::asio::ip::tcp::socket m_control_socket;
-    boost::asio::ip::tcp::socket m_receiver_socket;
     boost::asio::ip::tcp::endpoint m_endpoint;
+    boost::asio::ip::tcp::socket m_receiver_socket;
 
     std::shared_ptr<dunedaq::hsilibs::HSIEventSender::raw_sender_ct> m_cib_hsi_data_sender;
 

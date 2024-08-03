@@ -294,12 +294,13 @@ namespace dunedaq::cibmodules {
     uint32_t signal;
     //connect to socket
     boost::system::error_code ec;
+    //boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(),m_receiver_port )
+    unsigned short port = m_receiver_port;
+    boost::asio::ip::tcp::endpoint ep( boost::asio::ip::tcp::v4(),port );
 
-    boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,
-                                            boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(),
-                                                                            m_receiver_port ) );
+    boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,ep);
 
-    TLOG() << get_name() << ": Waiting for an incoming connection on port " << m_receiver_port << std::endl;
+    TLOG() << get_name() << ": Waiting for an incoming connection on port " << port << std::endl;
 
     std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket,ec) ; } ) ;
     if (ec)
