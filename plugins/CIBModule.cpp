@@ -53,7 +53,7 @@ namespace dunedaq::cibmodules {
                 , m_last_readout_timestamp(0)
                 , m_module_instance(0)
                 , m_trigger_bit(0)
-
+                , m_receiver_ready(false)
                 {
     //TLOG()
     // we can infer the instance from the name
@@ -123,6 +123,9 @@ namespace dunedaq::cibmodules {
     m_trigger_bit = 0x1 << m_cfg.cib_trigger_bit;
     // NFB: We may have an issue here. This instance should be provided at the init stage, not configure
     m_module_instance = m_cfg.cib_instance;
+
+    TLOG() << get_name() << ": Instance " << m_module_instance << " assigned to trigger bit " << m_trigger_bit;
+
 
     // set local caches for the variables that are needed to set up the receiving ends
     // remember that on the server side the receiver host is necessary
@@ -427,7 +430,7 @@ namespace dunedaq::cibmodules {
       ++m_run_trigger_counter;
 
       m_last_readout_timestamp = tcp_packet.word.timestamp;
-      signal = 0x1 << m_trigger_bit;
+//      signal = 0x1 << m_trigger_bit;
       // we do not need to know anything else
       // ideally, one could add other information such as the direction
       // this should be coming packed in the trigger word
@@ -450,7 +453,7 @@ namespace dunedaq::cibmodules {
 
       hsi_struct[3] = 0x0;                      // lower 32b
       hsi_struct[4] = 0x0;                      // upper 32b
-      hsi_struct[5] = signal;            // trigger_map;
+      hsi_struct[5] = m_trigger_bit;            // trigger_map;
       hsi_struct[6] = m_run_trigger_counter;    // m_generated_counter;
 
       TLOG() << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
