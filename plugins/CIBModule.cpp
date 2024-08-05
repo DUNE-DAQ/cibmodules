@@ -294,7 +294,6 @@ namespace dunedaq::cibmodules {
     std::size_t n_words = 0 ;
     std::size_t prev_seq = 0 ;
     bool first = true;
-    uint32_t signal;
     //connect to socket
     boost::system::error_code ec;
     //boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(),m_receiver_port )
@@ -472,7 +471,7 @@ namespace dunedaq::cibmodules {
       // TODO Nuno Barros Apr-02-2024 : properly fill device id
       // still need to figure this one out.
       dfmessages::HSIEvent event = dfmessages::HSIEvent(0x1,
-                                                        signal,
+                                                        m_trigger_bit,
                                                         tcp_packet.word.timestamp,
                                                         m_run_trigger_counter, m_run_number);
       send_hsi_event(event);
