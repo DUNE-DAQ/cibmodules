@@ -296,11 +296,24 @@ namespace dunedaq::cibmodules {
     boost::system::error_code ec;
     //boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(),m_receiver_port )
     unsigned short port = m_receiver_port;
-    boost::asio::ip::tcp::endpoint ep( boost::asio::ip::tcp::v4(),port );
 
-    boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,ep);
-    TLOG() << get_name() << ": Waiting for an incoming connection on port " << port << std::endl;
-    m_receiver_ios.run();
+    boost::asio::io_service io_service;
+    boost::asio::ip::tcp::endpoint ep( boost::asio::ip::tcp::v4(),port );
+    boost::asio::ip::tcp::acceptor acceptor(io_service,ep);
+    acceptor.listen(boost::asio::ip::tcp::socket::max_connections, ec);
+    if (ec)
+    {
+     TLOG() << get_name() << ": Error listening on socket: :" << port << " -- reason: '" << ec << '\'';
+     return;
+    }
+    else
+    {
+      TLOG() << get_name() << ": Waiting for an incoming connection on port " << port << std::endl;
+    }
+//      m_receiver_ios.run();
+
+
+
 
     std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket,ec) ; } ) ;
     if (ec)
@@ -310,6 +323,8 @@ namespace dunedaq::cibmodules {
       ers::error(CIBCommunicationError(ERS_HERE,msg.str()));
       return;
     }
+
+
 
     m_receiver_ready.store(true);
 
