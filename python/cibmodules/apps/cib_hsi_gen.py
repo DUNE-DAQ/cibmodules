@@ -109,7 +109,7 @@ def get_cib_hsi_app(module_name,
                         toposort=False)
 
     # NFB: Can I have just one of these
-    mgraph.add_endpoint(f"{instance_name}_hsievents", f"{instance_name}.hsievents", "HSIEvent",    Direction.OUT)
+    mgraph.add_endpoint(f"{module_name}_hsievents", f"{instance_name}.hsievents", "HSIEvent",    Direction.OUT)
 
     # dummy subscriber
     mgraph.add_endpoint(None, None, data_type="TimeSync", inout=Direction.IN, is_pubsub=True)
