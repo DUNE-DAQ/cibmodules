@@ -359,7 +359,7 @@ namespace dunedaq::cibmodules {
 
       update_calibration_file();
 
-      if ( ! read( tcp_packet ) )
+      if ( ! read(receiver_socket, tcp_packet ) )
       {
         connection_closed = true ;
         break;
