@@ -314,7 +314,6 @@ namespace dunedaq::cibmodules {
 
 
 
-
     std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket,ec) ; } ) ;
     if (ec)
     {
@@ -323,8 +322,7 @@ namespace dunedaq::cibmodules {
       ers::error(CIBCommunicationError(ERS_HERE,msg.str()));
       return;
     }
-
-
+    acceptor.io_service().run();
 
     m_receiver_ready.store(true);
 
