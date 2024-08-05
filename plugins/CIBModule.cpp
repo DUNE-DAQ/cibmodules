@@ -40,9 +40,9 @@ namespace dunedaq::cibmodules {
                 , m_is_configured(false)
                 , m_error_state(false)
                 , m_control_ios()
-                , m_receiver_ios()
+//                , m_receiver_ios()
                 , m_control_socket(m_control_ios)
-                , m_receiver_socket(m_receiver_ios)
+//                , m_receiver_socket(m_receiver_ios)
                 , m_thread_(std::bind(&CIBModule::do_hsi_work, this, std::placeholders::_1))
 //                , m_run_packet_counter(0)
                 , m_run_trigger_counter(0)
@@ -296,7 +296,8 @@ namespace dunedaq::cibmodules {
     boost::system::error_code ec;
     //boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(),m_receiver_port )
     unsigned short port = m_receiver_port;
-
+    boost::asio::io_service receiver_ios;
+    boost::asio::ip::tcp::socket receiver_socket(receiver_ios);
     boost::asio::io_service io_service;
     boost::asio::ip::tcp::endpoint ep( boost::asio::ip::tcp::v4(),port );
     boost::asio::ip::tcp::acceptor acceptor(io_service,ep);
@@ -314,7 +315,7 @@ namespace dunedaq::cibmodules {
 
 
 
-    std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket,ec) ; } ) ;
+    std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(receiver_socket,ec) ; } ) ;
     if (ec)
     {
       std::stringstream msg;
@@ -484,7 +485,7 @@ namespace dunedaq::cibmodules {
     if ( m_error_state.load() )
     {
 
-      m_receiver_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_send, closing_error);
+      receiver_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_send, closing_error);
 
       if ( closing_error )
       {
@@ -494,7 +495,7 @@ namespace dunedaq::cibmodules {
       }
     }
 
-    m_receiver_socket.close(closing_error) ;
+    receiver_socket.close(closing_error) ;
 
     if ( closing_error )
     {
@@ -513,11 +514,11 @@ namespace dunedaq::cibmodules {
   }
 
   template<typename T>
-  bool CIBModule::read( T &obj)
+  bool CIBModule::read(boost::asio::ip::tcp::socket &socket, T &obj)
   {
 
     boost::system::error_code receiving_error;
-    boost::asio::read( m_receiver_socket,
+    boost::asio::read( socket,
                        boost::asio::buffer( &obj, sizeof(T) ),
                        receiving_error ) ;
 
