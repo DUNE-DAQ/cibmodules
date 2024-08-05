@@ -24,8 +24,12 @@ from daqconf.core.conf_utils import Direction, Queue
 
 console = Console()
 
+#=========================== Function to get multiple apps at the same time
+def get_cib_apps(name,):
+    pass
+
 #===============================================================================
-def get_cib_hsi_app(nickname,
+def get_cib_hsi_app(module_name,
                     instance_id,
                     source_id,
                     conf,         # This is a configuration coming from confgen (or fddaqconf)
@@ -47,7 +51,7 @@ def get_cib_hsi_app(nickname,
     lus = []
     
     # Name of this instance
-    name = f"{nickname}{instance_id}"
+    instance_name = f"{module_name}{instance_id}"
 
     lconf = cib.Conf(cib_trigger_bit=conf.trigger, 
                      cib_host=conf.cib_host, 
@@ -56,7 +60,7 @@ def get_cib_hsi_app(nickname,
 
     # Should one of these be made per CIB module?
     # In principle there should be no need for more than one please
-    modules += [DAQModule(name = f"{nickname}_datahandler",
+    modules += [DAQModule(name = f"{instance_name}_datahandler",
                         plugin = "HSIDataLinkHandler",
                         conf = rconf.Conf(readoutmodelconf = rconf.ReadoutModelConf(source_queue_timeout_ms = QUEUE_POP_WAIT_MS, 
                                                                                     source_id=source_id,
@@ -77,14 +81,14 @@ def get_cib_hsi_app(nickname,
     # Customize the configuration with the parts that are specific to this instance
     # hosts and ports
     # Assign a unique name
-    modules += [DAQModule(name = name, 
+    modules += [DAQModule(name = instance_name, 
                           plugin = 'CIBModule',
                           conf = lconf
                      )]
 
 
-    queues = [Queue(f"{name}.cib_output",
-                    f"{nickname}_datahandler.raw_input",
+    queues = [Queue(f"{instance_name}.cib_output",
+                    f"{instance_name}_datahandler.raw_input",
                     "HSIFrame",
                     size=100000)
                      ]
@@ -93,25 +97,25 @@ def get_cib_hsi_app(nickname,
 
     mgraph.add_fragment_producer(id = source_id, 
                                  subsystem = "HW_Signals_Interface",
-                                 requests_in   = f"{nickname}_datahandler.request_input",
-                                 fragments_out = f"{nickname}_datahandler.fragment_queue")
+                                 requests_in   = f"{instance_name}_datahandler.request_input",
+                                 fragments_out = f"{instance_name}_datahandler.fragment_queue")
 
     mgraph.add_endpoint(f"timesync_cib", 
-                        f"{nickname}_datahandler.timesync_output", 
+                        f"{instance_name}_datahandler.timesync_output", 
                         "TimeSync", 
                         Direction.OUT, 
                         is_pubsub=True, 
                         toposort=False)
 
     # NFB: Can I have just one of these
-    mgraph.add_endpoint(f"{nickname}_hsievents", f"{name}.hsievents", "HSIEvent",    Direction.OUT)
+    mgraph.add_endpoint(f"{instance_name}_hsievents", f"{instance_name}.hsievents", "HSIEvent",    Direction.OUT)
 
     # dummy subscriber
     mgraph.add_endpoint(None, None, data_type="TimeSync", inout=Direction.IN, is_pubsub=True)
 
     console.log('generated CIB DAQ module')
 
-    cib_app = App(modulegraph=mgraph, host=host, name=nickname)
-    console.log(f"app {nickname} generated")
+    cib_app = App(modulegraph=mgraph, host=host, name=module_name)
+    console.log(f"app {instance_name} generated")
 
     return cib_app
