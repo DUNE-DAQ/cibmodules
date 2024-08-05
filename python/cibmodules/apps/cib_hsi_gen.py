@@ -38,7 +38,7 @@ def get_cib_hsi_app(module_name,
                     LATENCY_BUFFER_SIZE=100000,
                     DATA_REQUEST_TIMEOUT=1000,
                     host="localhost",
-                    debug=false):
+                    debug=False):
 
     '''
     Here an entire application consisting only of one CIBModule is generated. 
