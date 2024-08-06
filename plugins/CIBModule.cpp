@@ -30,7 +30,8 @@
  */
 #define TRACE_NAME "CIBModule" // NOLINT
 #define TLVL_ENTER_EXIT_METHODS 10
-#define TLVL_CIB_MODULE 15
+#define TLVL_CIB_INFO 5
+#define TLVL_CIB_DEBUG 15
 
 namespace dunedaq::cibmodules {
 
@@ -55,13 +56,12 @@ namespace dunedaq::cibmodules {
                 , m_trigger_bit(0)
                 , m_receiver_ready(false)
                 {
-    //TLOG()
     // we can infer the instance from the name
-    TLOG() << get_name() << ": Instantiating a cibmodule with argument " << name;
-
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Instantiating a cibmodule with argument [" << name << "]";
     register_command("conf", &CIBModule::do_configure);
     register_command("start", &CIBModule::do_start);
     register_command("stop", &CIBModule::do_stop);
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Leaving [" << name << "]constructor.";
                 }
 
   CIBModule::~CIBModule()
@@ -72,14 +72,13 @@ namespace dunedaq::cibmodules {
       // this should also take care of closing the streaming socket
       do_stop(stopobj);
     }
-    TLOG() << get_name() << ": Closing the control socket " << std::endl;
+    TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Closing the control socket " << std::endl;
     m_control_socket.close() ;
   }
 
   void
   CIBModule::init(const nlohmann::json& init_data)
   {
-
     /**
      * Typical contents of init_data
      *
@@ -94,37 +93,39 @@ namespace dunedaq::cibmodules {
      }
      *
      */
-    //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering init() method";
-    TLOG() << get_name() << ": Entering init() method";
-    TLOG() << get_name() << ": Init data :  " << init_data.dump();
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering init() method";
+    TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() << ": Init data :  " << init_data.dump();
 
+    // init the sender
     HSIEventSender::init(init_data);
 
-    //FIXME: Verify that this is going to the right place
     m_cib_hsi_data_sender = get_iom_sender<dunedaq::hsilibs::HSI_FRAME_STRUCT>(appfwk::connection_uid(init_data, "cib_output"));
 
-    //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting init() method";
-    TLOG() << get_name() << ": Exiting init() method";
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting init() method";
   }
 
   void
   CIBModule::do_configure(const nlohmann::json& args)
   {
 
-    TLOG() << get_name() << ": Configuring CIB";
-    TLOG() << get_name() << ": Received configuration fragment : " << args.dump();
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering CIB do_configure()";
+    TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() << ": Received configuration fragment : " << args.dump();
 
     // this is automatically generated out of the jsonnet files in the (config) schema
     m_cfg = args.get<cibmodule::Conf>();
     nlohmann::json tmp_cfg(m_cfg);
 
-    TLOG() << get_name() << ": Extracted configuration fragment : " << tmp_cfg.dump();
+    TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() << ": Extracted configuration fragment : " << tmp_cfg.dump();
 
+    // the configuration trigger parameters is actually representing a bitmask
+    // what is defined in the configuration is the index of a map of trigger bits
+    // so we have to shift the bit by the configuration parameter
     m_trigger_bit = 0x1 << m_cfg.cib_trigger_bit;
-    // NFB: We may have an issue here. This instance should be provided at the init stage, not configure
+    // this is not really used right now, but keeping it for future needs
     m_module_instance = m_cfg.cib_instance;
 
-    TLOG() << get_name() << ": Instance " << m_module_instance << " assigned to trigger bit " << m_trigger_bit;
+    TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Instance " << m_module_instance << " assigned to trigger bit " << m_trigger_bit
+        << " ( 0x" << std::hex << m_trigger_bit << std::dec << ")";
 
 
     // set local caches for the variables that are needed to set up the receiving ends
@@ -132,13 +133,12 @@ namespace dunedaq::cibmodules {
     m_receiver_port = m_cfg.board_config.sockets.receiver.port;
     m_receiver_timeout = std::chrono::microseconds( m_cfg.board_config.sockets.receiver.timeout ) ;
 
-    TLOG() << get_name() << ": Board receiver network location "
+
+    TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() << ": Board receiver network location (from config) "
         << m_cfg.board_config.sockets.receiver.host << ':'
         << m_cfg.board_config.sockets.receiver.port
         << " (timeout = " << m_cfg.board_config.sockets.receiver.timeout << ")";
 
-    TLOG() << get_name() << ": trigger bit for this instance : " << m_cfg.cib_trigger_bit
-        << " (" << std::hex << m_trigger_bit << std::dec << ")";
     // Initialise monitoring variables
     m_num_control_messages_sent = 0;
     m_num_control_responses_received = 0;
@@ -148,12 +148,8 @@ namespace dunedaq::cibmodules {
     //
     boost::asio::ip::tcp::resolver resolver( m_control_ios );
     // once again, these are obtained from the configuration
-    // FIXME: Potential problem: if multiple instances
-    //        are running, there is a chance that both run on the same machine
-    //        in which case the port needs to be updated
     // //"np04-iols-cib-01", 8991
-    boost::asio::ip::tcp::resolver::query query(m_cfg.cib_host,
-                                                std::to_string(m_cfg.cib_port) ) ;
+    boost::asio::ip::tcp::resolver::query query(m_cfg.cib_host, std::to_string(m_cfg.cib_port) ) ;
     boost::asio::ip::tcp::resolver::iterator iter = resolver.resolve(query) ;
 
     m_endpoint = iter->endpoint();
@@ -165,10 +161,11 @@ namespace dunedaq::cibmodules {
     }
     catch (std::exception& e)
     {
-      TLOG() << "Exeption caught while establishing connection to CIB : " << e.what();
+      std::ostringstream msg("");
+      msg << get_name() << "Exception caught while establishing connection to CIB : " << e.what();
       // do nothing more. Just exist
       m_is_configured.store(false);
-      throw CIBCommunicationError(ERS_HERE, "Unable to connect to CIB");
+      throw CIBCommunicationError(ERS_HERE, msg.str());
     }
 
     // if necessary, set the calibration stream
@@ -182,7 +179,26 @@ namespace dunedaq::cibmodules {
 
     // create the json string out of the config fragment
     nlohmann::json config;
-    to_json(config, m_cfg.board_config);
+    try
+    {
+      to_json(config, m_cfg.board_config);
+    }
+    catch(nlohmann::json::exception &e)
+    {
+      std::ostringstream msg("");
+      msg << get_name() << "Caught a JSON exception converting config fragment : " << e.what();
+      m_is_configured.store(false);
+      throw CIBModuleError(ERS_HERE, msg.str());
+
+    }
+    catch (std::exception& e)
+    {
+      std::ostringstream msg("");
+      msg << get_name() << "Caught STD exception while converting config fragment : " << e.what();
+      // do nothing more. Just exist
+      m_is_configured.store(false);
+      throw CIBModuleError(ERS_HERE, msg.str());
+    }
 
     //    TLOG() << "CONF TEST: \n" << config.dump();
     send_config(config.dump());
@@ -192,8 +208,7 @@ namespace dunedaq::cibmodules {
   CIBModule::do_start(const nlohmann::json& startobj)
   {
 
-    //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering do_start() method";
-    TLOG() << get_name() << ": Entering do_start() method";
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering do_start() method";
     // actually, the first thing to check is whether the CIB has been configured
     // if not, this won't work
     if (!m_is_configured.load())
@@ -202,16 +217,16 @@ namespace dunedaq::cibmodules {
     }
 
     auto start_params = startobj.get<rcif::cmd::StartParams>();
+
     // this is actually part of the run command sent to the CIB
     m_run_number.store(start_params.run);
 
-    TLOG() << get_name() << ": Sending start of run command";
+    TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Sending start of run command";
     m_thread_.start_working_thread();
 
     // NFB: There is a potential race condition here: the socket in the working thread
     // needs to be in place before the CIB receives order to send data, or we risk having a connection
     // failure, if for some reason the CIB attempts to connect before the working thread is ready to receive.
-
     if ( m_calibration_stream_enable )
     {
       std::stringstream run;
@@ -226,10 +241,10 @@ namespace dunedaq::cibmodules {
       if (cnt > 50)
       {
         // the socket didn't get ready on time
-        throw CIBProcError(ERS_HERE,"Receiver socket timed out before becoming ready.");
+        throw CIBModuleError(ERS_HERE,"Receiver socket timed out before becoming ready.");
       }
     }
-    TLOG() << get_name() << ": All ready to signal the CIB";
+    TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() << ": All ready to signal the CIB to start";
 
     nlohmann::json cmd;
     cmd["command"] = "start_run";
@@ -238,38 +253,41 @@ namespace dunedaq::cibmodules {
     if ( send_message( cmd.dump() )  )
     {
       m_is_running.store(true);
-      TLOG() << get_name() << ": successfully started";
+      TLOG() << get_name() << ": CIB run started successfully";
     }
     else
     {
       throw CIBCommunicationError(ERS_HERE, "Unable to start CIB run");
     }
 
-    //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_start() method";
-    TLOG() << get_name() << ": Exiting do_start() method";
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_start() method";
   }
 
   void
   CIBModule::do_stop(const nlohmann::json& /*stopobj*/)
   {
 
-    //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering do_stop() method";
-    TLOG()<< get_name() << ": Entering do_stop() method";
-    TLOG() << get_name() << ": Sending stop run command" << std::endl;
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering do_stop() method";
+    TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() << ": Sending stop run command" << std::endl;
     if(send_message( "{\"command\":\"stop_run\"}" ) )
     {
-      TLOG() << get_name() << ": successfully stopped";
+      TLOG() << get_name() << ": CIB run stopped successfully";
       m_is_running.store( false ) ;
     }
     else
     {
+      // failed to sent the message to stop the run.
+      // stop the collecting thread and then throw, since that
+      // attempts a cleaner exit
+      m_thread_.stop_working_thread();
+
       throw CIBCommunicationError(ERS_HERE, "Unable to stop CIB");
     }
     //
     m_thread_.stop_working_thread();
 
     // -- print the counters for local info
-    TLOG() << get_name() << " Counter summary after run [" << m_run_number << "]:\n\n"
+    TLOG() << get_name() << ": CIB trigger counter summary after run [" << m_run_number << "]:\n\n"
         << "IOLS trigger counter in run : " << m_run_trigger_counter << "\n"
         << "Global IOLS trigger count   : " << m_num_total_triggers << std::endl;
 
@@ -277,31 +295,33 @@ namespace dunedaq::cibmodules {
     // reset counters
     m_run_trigger_counter=0;
 
-    //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_stop() method";
-    TLOG() << get_name() << ": Exiting do_stop() method";
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_stop() method";
   }
+
   // this method is completely new
   // in fact, it is where most of the work is really done
   void
   CIBModule::do_hsi_work(std::atomic<bool>& running_flag)
   {
-    //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering do_work() method";
-    TLOG() << get_name() << ": Entering do_work() method";
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Entering do_work() method";
+
     std::size_t n_bytes = 0 ;
     std::size_t n_words = 0 ;
     std::size_t prev_seq = 0 ;
     bool first = true;
+
     //connect to socket
+    // should we keep everything local or under the class?
     boost::system::error_code ec;
     //boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(),m_receiver_port )
-    unsigned short port = m_receiver_port;
 
+    unsigned short port = m_receiver_port;
     // check that this port is still available
     while(check_port_in_use(port))
     {
       port++;
     }
-
+    // check if the port is different from the configured one
     if (port != m_receiver_port)
     {
       std::ostringstream msg("");
@@ -311,7 +331,7 @@ namespace dunedaq::cibmodules {
     }
     else
     {
-      TLOG() << get_name() << ": Will set up the listener on port " << port << std::endl;
+      TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Will set up the listener on port " << port << std::endl;
     }
 
     boost::asio::io_service receiver_ios;
@@ -322,12 +342,14 @@ namespace dunedaq::cibmodules {
     acceptor.listen(boost::asio::ip::tcp::socket::max_connections, ec);
     if (ec)
     {
-     TLOG() << get_name() << ": Error listening on socket: :" << port << " -- reason: '" << ec << '\'';
-     return;
+      std::ostringstream msg("");
+      msg << get_name() << ": CIB got an error listening on socket: :" << port << " -- reason: '" << ec << "'";
+      throw CIBCommunicationError(ERS_HERE,msg.str());
+      return;
     }
     else
     {
-      TLOG() << get_name() << ": Waiting for an incoming connection on port " << port << std::endl;
+      TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Waiting for an incoming connection on port " << port << std::endl;
     }
 
     std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(receiver_socket,ec) ; } ) ;
@@ -338,7 +360,7 @@ namespace dunedaq::cibmodules {
       ers::error(CIBCommunicationError(ERS_HERE,msg.str()));
       return;
     }
-
+    //
     m_receiver_ready.store(true);
 
     while ( running_flag.load() )
@@ -349,11 +371,11 @@ namespace dunedaq::cibmodules {
       }
 //      else
 //      {
-//        TLOG() << "Waiting for a bit longer";
+//        TLOG_DEBUG(TLVL_DEBUG_MEDIUM) << "Waiting for a bit longer";
 //      }
     }
 
-    TLOG() << get_name() <<  ": Connection received: start reading" << std::endl;
+    TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() <<  ": Connection received: start reading" << std::endl;
 
     // -- A couple of variables to help in the data parsing
     /**
@@ -363,14 +385,12 @@ namespace dunedaq::cibmodules {
      */
 
     dunedaq::cib::daq::iols_tcp_packet_t tcp_packet;
-    dunedaq::cib::daq::iols_trigger_t *trigger;
 
     //boost::system::error_code receiving_error;
     bool connection_closed = false ;
 
     while (running_flag.load())
     {
-
       update_calibration_file();
 
       if ( ! read(receiver_socket, tcp_packet ) )
@@ -384,10 +404,12 @@ namespace dunedaq::cibmodules {
 
       if (n_words != 1)
       {
-        TLOG() << "Received more than one IoLS trigger word at once! This should never happen. Got "
+        std::ostringstream msg("");
+        msg << "Received more than one IoLS trigger word at once! This should never happen. Got "
             << n_bytes << " (expected " << sizeof(dunedaq::cib::daq::iols_trigger_t) << ")";
+        ers::warning(CIBMessage(ERS_HERE, msg.str()));
       }
-      // on the latest release the CIB only ships one word per packet....so this error should be impossible
+      // the CIB only ships one word per packet....so this error should be impossible
       // check continuity of the sequence numbers
       if (first)
       {
@@ -436,18 +458,16 @@ namespace dunedaq::cibmodules {
         m_calibration_file.flush() ;
       }
 
-      TLOG() << "Received IoLS trigger word!";
+      TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() << "Received IoLS trigger word!";
       ++m_num_total_triggers;
       ++m_run_trigger_counter;
-
       m_last_readout_timestamp = tcp_packet.word.timestamp;
-//      signal = 0x1 << m_trigger_bit;
+
       // we do not need to know anything else
       // ideally, one could add other information such as the direction
       // this should be coming packed in the trigger word
       // note, however, that to reconstruct the trace direction we also would need the source position
-      // and that we cannot afford to send, so we can just make it up out of the
-      // IoLS system
+      // and that we cannot afford to send, so we can just make it up out of the  IoLS system
       //
       // Send HSI data to a DLH
       std::array<uint32_t, 7> hsi_struct;
@@ -460,14 +480,14 @@ namespace dunedaq::cibmodules {
       /**
        * A note about the 5th entry
        * The trigger bit is actually mapped into a single bit, that is then remapped back
+       * into an index
        */
-
       hsi_struct[3] = 0x0;                      // lower 32b
       hsi_struct[4] = 0x0;                      // upper 32b
       hsi_struct[5] = m_trigger_bit;            // trigger_map;
       hsi_struct[6] = m_run_trigger_counter;    // m_generated_counter;
 
-      TLOG() << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
+      TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() << ": Formed HSI_FRAME_STRUCT for hlt "
           << std::hex
           << "0x"   << hsi_struct[0]
           << ", 0x" << hsi_struct[1]
@@ -486,6 +506,7 @@ namespace dunedaq::cibmodules {
                                                         m_trigger_bit,
                                                         tcp_packet.word.timestamp,
                                                         m_run_trigger_counter, m_run_number);
+      // FIXME: Could we override this class to pass on extra information to the candidate maker?
       send_hsi_event(event);
 
       if ( connection_closed )
@@ -495,19 +516,21 @@ namespace dunedaq::cibmodules {
     }
 
     boost::system::error_code closing_error;
-
-    if ( m_error_state.load() )
-    {
-
-      receiver_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_send, closing_error);
-
-      if ( closing_error )
-      {
-        std::stringstream msg;
-        msg << "Error in shutdown " << closing_error.message();
-        ers::error(CIBCommunicationError(ERS_HERE,msg.str())) ;
-      }
-    }
+    // NFB: This was intended for a case when the CIB could have troubles fetching data and therefore could
+    //      pass an error state word. That functionality has been removed and therefore this error_state is
+    //      now obsolete
+    //    if ( m_error_state.load() )
+    //    {
+    //
+    //      receiver_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_send, closing_error);
+    //
+    //      if ( closing_error )
+    //      {
+    //        std::stringstream msg;
+    //        msg << "Error in shutdown " << closing_error.message();
+    //        ers::error(CIBCommunicationError(ERS_HERE,msg.str())) ;
+    //      }
+    //    }
 
     receiver_socket.close(closing_error) ;
 
@@ -520,11 +543,9 @@ namespace dunedaq::cibmodules {
 
     m_receiver_ready.store(false);
 
-    //TLOG_DEBUG(TLVL_CIB_MODULE) << get_name() << ": End of do_work loop: stop receiving data from the CIB";
-    TLOG() << get_name() << ": End of do_work loop: stop receiving data from the CIB";
+    TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": End of do_work loop: stop receiving data from the CIB";
 
-    //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_work() method";
-    TLOG() << get_name() << ": Exiting do_work() method";
+    TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_work() method";
   }
 
   template<typename T>
@@ -575,7 +596,7 @@ namespace dunedaq::cibmodules {
     m_last_calibration_file_update = std::chrono::steady_clock::now();
     // _calibration_file.setf ( std::ios::hex, std::ios::basefield );
     // _calibration_file.unsetf ( std::ios::showbase );
-    TLOG() << get_name() << ": New Calibration Stream file: " << global_name << std::endl ;
+    TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": New Calibration Stream file: " << global_name << std::endl ;
   }
 
   void CIBModule::update_calibration_file()
@@ -616,13 +637,13 @@ namespace dunedaq::cibmodules {
 
   void CIBModule::send_config( const std::string & config ) {
 
-    if ( m_is_configured.load() )
-    {
-      TLOG() << get_name() << ": Resetting before configuring" << std::endl;
-      send_reset();
-    }
+//    if ( m_is_configured.load() )
+//    {
+//      TLOG() << get_name() << ": Resetting before configuring" << std::endl;
+//      send_reset();
+//    }
 
-    TLOG() << get_name() << ": Sending config" << std::endl;
+    TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Sending config" << std::endl;
 
     // structure the message to have a common management structure
     //json receiver = doc.at("ctb").at("sockets").at("receiver");
@@ -631,7 +652,7 @@ namespace dunedaq::cibmodules {
     conf["command"] = "config";
     conf["config"] = nlohmann::json::parse(config);
 
-    TLOG() << get_name() << ": Shipped config : " << conf.dump() << std::endl;
+    TLOG_DEBUG(TLVL_CIB_DEBUG) << get_name() << ": Shipped config : " << conf.dump() << std::endl;
 
     if ( send_message( conf.dump() ) )
     {
@@ -643,16 +664,16 @@ namespace dunedaq::cibmodules {
     }
   }
 
-  void CIBModule::send_reset()
-  {
-    // actually, we do not want to do this to the CIB
-    // the reset should go through the slow control
-
-    TLOG_DEBUG(1) << get_name() << ": NOT Sending a reset" << std::endl;
-
-    return;
-
-  }
+//  void CIBModule::send_reset()
+//  {
+//    // actually, we do not want to do this to the CIB
+//    // the reset should go through the slow control
+//
+//    TLOG_DEBUG(1) << get_name() << ": NOT Sending a reset" << std::endl;
+//
+//    return;
+//
+//  }
 
   bool CIBModule::send_message( const std::string & msg )
   {
@@ -692,13 +713,13 @@ namespace dunedaq::cibmodules {
       }
       else if ( type.find("info") != std::string::npos || type.find("Info") != std::string::npos || type.find("INFO") != std::string::npos)
       {
-        TLOG() << "Message from the board: " << messages[i]["message"].dump();
+        TLOG() << "Message from the CIB : " << messages[i]["message"].dump();
       }
       else
       {
         std::stringstream blob;
         blob << messages[i] ;
-        TLOG() << get_name() << ": Unformatted from the board: " << blob.str();
+        TLOG() << get_name() << ": Unformatted feedback from the board: " << blob.str();
       }
     }
     return ret;

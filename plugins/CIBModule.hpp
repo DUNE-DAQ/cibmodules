@@ -59,7 +59,7 @@ namespace dunedaq::cibmodules {
 
     ~CIBModule();
 
-    bool ErrorState() const { return m_error_state.load() ; }
+//    bool ErrorState() const { return m_error_state.load() ; }
     void get_info(opmonlib::InfoCollector& ci, int level) override;
 
   private:
@@ -74,13 +74,14 @@ namespace dunedaq::cibmodules {
 
     bool check_port_in_use(unsigned short port);
 
-    std::atomic<bool> m_error_state;
+//    std::atomic<bool> m_error_state;
 
     boost::asio::io_service m_control_ios;
-//    boost::asio::io_service m_receiver_ios;
     boost::asio::ip::tcp::socket m_control_socket;
     boost::asio::ip::tcp::endpoint m_endpoint;
-//    boost::asio::ip::tcp::socket m_receiver_socket;
+
+    boost::asio::io_service m_receiver_ios;
+    boost::asio::ip::tcp::socket m_receiver_socket;
 
     std::shared_ptr<dunedaq::hsilibs::HSIEventSender::raw_sender_ct> m_cib_hsi_data_sender;
 
@@ -93,7 +94,7 @@ namespace dunedaq::cibmodules {
 
     // the CIB does not need reset, since the DAQ operation is
     // decoupled from the instrumentation operation
-    void send_reset() ;
+//    void send_reset() ;
     void send_config(const std::string & config);
     bool send_message(const std::string & msg);
 
@@ -101,7 +102,7 @@ namespace dunedaq::cibmodules {
     dunedaq::cibmodules::cibmodule::Conf m_cfg;
     std::atomic<daqdataformats::run_number_t> m_run_number;
 
-    // Threading
+    // Threading client
     dunedaq::utilities::WorkerThread m_thread_;
     void do_hsi_work(std::atomic<bool>&);
 
@@ -111,6 +112,7 @@ namespace dunedaq::cibmodules {
     //
     //
     // members related to calibration stream
+    //
     //
     // this is a standalone output parallel to the DAQ
     void update_calibration_file();
@@ -125,10 +127,12 @@ namespace dunedaq::cibmodules {
     std::ofstream m_calibration_file;
     std::chrono::steady_clock::time_point m_last_calibration_file_update;
 
-    // counters per run
-//    std::atomic<unsigned long> m_run_packet_counter = 0;
+
+    //
+    // counters
+    //
     std::atomic<unsigned long> m_run_trigger_counter = 0;
-    std::atomic<unsigned int> m_num_total_triggers;
+    std::atomic<unsigned long> m_num_total_triggers;
 
 
     //
@@ -141,6 +145,9 @@ namespace dunedaq::cibmodules {
     void update_buffer_counts(uint new_count); // NOLINT(build/unsigned)
     double read_average_buffer_counts();
 
+    //
+    // DAQ-CIB communication statistics
+    //
     std::atomic<int>      m_num_control_messages_sent;
     std::atomic<int>      m_num_control_responses_received;
     std::atomic<uint64_t> m_last_readout_timestamp; // NOLINT(build/unsigned)
@@ -150,6 +157,7 @@ namespace dunedaq::cibmodules {
     //
     uint32_t m_module_instance;
     uint32_t m_trigger_bit;
+    // flag to hold the start_run until the receiver is ready
     std::atomic<bool> m_receiver_ready;
   };
 
