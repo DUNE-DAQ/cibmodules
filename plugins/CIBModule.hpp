@@ -78,7 +78,7 @@ namespace dunedaq::cibmodules {
 
     boost::asio::io_service m_control_ios;
     boost::asio::ip::tcp::socket m_control_socket;
-    boost::asio::ip::tcp::endpoint m_endpoint;
+    boost::asio::ip::tcp::endpoint m_control_endpoint;
 
     boost::asio::io_service m_receiver_ios;
     boost::asio::ip::tcp::socket m_receiver_socket;

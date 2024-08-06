@@ -39,22 +39,20 @@ namespace dunedaq::cibmodules {
               : hsilibs::HSIEventSender(name)
                 , m_is_running(false)
                 , m_is_configured(false)
-//                , m_error_state(false)
                 , m_control_ios()
-//                , m_receiver_ios()
                 , m_control_socket(m_control_ios)
+//                , m_receiver_ios()
 //                , m_receiver_socket(m_receiver_ios)
                 , m_thread_(std::bind(&CIBModule::do_hsi_work, this, std::placeholders::_1))
-//                , m_run_packet_counter(0)
                 , m_run_trigger_counter(0)
                 , m_num_total_triggers(0)
-
                 , m_num_control_messages_sent(0)
                 , m_num_control_responses_received(0)
                 , m_last_readout_timestamp(0)
                 , m_module_instance(0)
                 , m_trigger_bit(0)
                 , m_receiver_ready(false)
+                //                , m_error_state(false)
                 {
     // we can infer the instance from the name
     TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Instantiating a cibmodule with argument [" << name << "]";
@@ -152,12 +150,12 @@ namespace dunedaq::cibmodules {
     boost::asio::ip::tcp::resolver::query query(m_cfg.cib_host, std::to_string(m_cfg.cib_port) ) ;
     boost::asio::ip::tcp::resolver::iterator iter = resolver.resolve(query) ;
 
-    m_endpoint = iter->endpoint();
+    m_control_endpoint = iter->endpoint();
 
     // attempt the connection.
     try
     {
-      m_control_socket.connect( m_endpoint );
+      m_control_socket.connect( m_control_endpoint );
     }
     catch (std::exception& e)
     {
