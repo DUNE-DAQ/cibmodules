@@ -72,10 +72,7 @@ namespace dunedaq::cibmodules {
 
     std::chrono::microseconds m_receiver_timeout;
 
-
-    //  std::chrono::microseconds m_timeout;
-
-
+    bool check_port_in_use(unsigned short port);
 
     std::atomic<bool> m_error_state;
 
@@ -91,7 +88,7 @@ namespace dunedaq::cibmodules {
     void do_configure(const nlohmann::json& obj);
     void do_start(const nlohmann::json& startobj);
     void do_stop(const nlohmann::json& obj);
-    // NFB: what's this for?
+    // this is not used for this module
     void do_scrap(const nlohmann::json& /*obj*/) { }
 
     // the CIB does not need reset, since the DAQ operation is

@@ -24,10 +24,6 @@ from daqconf.core.conf_utils import Direction, Queue
 
 console = Console()
 
-#=========================== Function to get multiple apps at the same time
-def get_cib_apps(name,):
-    pass
-
 #===============================================================================
 def get_cib_hsi_app(module_name,
                     instance_id,
@@ -53,11 +49,17 @@ def get_cib_hsi_app(module_name,
     
     # Name of this instance
     instance_name = f"{module_name}{instance_id}"
-
+    
+    # There is a caveats that we need to protect against. If more than one instance is launched on the 
+    # same machine, the later instances will fail to bind to the port (already in use)
+    # to minimise that we'll assign a different port per instance
+    #
+    # Of course, this does not account for other services reserving the same port
+    port = conf.port + instance_id
     lconf = cib.Conf(cib_trigger_bit=conf.trigger, 
                      cib_host=conf.cib_host, 
                      cib_port=conf.cib_port,
-                     board_config=cib.Config(sockets=cib.Sockets(receiver=cib.Receiver(host=conf.host))))
+                     board_config=cib.Config(sockets=cib.Sockets(receiver=cib.Receiver(host=conf.host,port=port))))
 
     # Should one of these be made per CIB module?
     # In principle there should be no need for more than one please
@@ -108,7 +110,7 @@ def get_cib_hsi_app(module_name,
                         is_pubsub=True, 
                         toposort=False)
 
-    # NFB: Can I have just one of these
+    # NFB: We can have just one of these
     mgraph.add_endpoint(f"{module_name}_hsievents", f"{instance_name}.hsievents", "HSIEvent",    Direction.OUT)
 
     # dummy subscriber

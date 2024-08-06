@@ -266,19 +266,16 @@ namespace dunedaq::cibmodules {
       throw CIBCommunicationError(ERS_HERE, "Unable to stop CIB");
     }
     //
-    //store_run_trigger_counters( m_run_number ) ;
     m_thread_.stop_working_thread();
 
     // -- print the counters for local info
     TLOG() << get_name() << " Counter summary after run [" << m_run_number << "]:\n\n"
         << "IOLS trigger counter in run : " << m_run_trigger_counter << "\n"
-//        << "IOLS packet counter in run  : " << m_run_packet_counter << "\n"
         << "Global IOLS trigger count   : " << m_num_total_triggers << std::endl;
 
 
     // reset counters
     m_run_trigger_counter=0;
-//    m_run_packet_counter=0;
 
     //TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Exiting do_stop() method";
     TLOG() << get_name() << ": Exiting do_stop() method";
@@ -298,6 +295,25 @@ namespace dunedaq::cibmodules {
     boost::system::error_code ec;
     //boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4(),m_receiver_port )
     unsigned short port = m_receiver_port;
+
+    // check that this port is still available
+    while(check_port_in_use(port))
+    {
+      port++;
+    }
+
+    if (port != m_receiver_port)
+    {
+      std::ostringstream msg("");
+      msg << "Listener port [" << m_receiver_port << "] is in use. Relocating to port [" << port << "]";
+      ers::warning(CIBMessage(ERS_HERE, msg.str()));
+      m_receiver_port = port;
+    }
+    else
+    {
+      TLOG() << get_name() << ": Will set up the listener on port " << port << std::endl;
+    }
+
     boost::asio::io_service receiver_ios;
     boost::asio::ip::tcp::socket receiver_socket(receiver_ios);
     boost::asio::io_service io_service;
@@ -313,9 +329,6 @@ namespace dunedaq::cibmodules {
     {
       TLOG() << get_name() << ": Waiting for an incoming connection on port " << port << std::endl;
     }
-//      m_receiver_ios.run();
-
-
 
     std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(receiver_socket,ec) ; } ) ;
     if (ec)
@@ -325,7 +338,6 @@ namespace dunedaq::cibmodules {
       ers::error(CIBCommunicationError(ERS_HERE,msg.str()));
       return;
     }
-//    acceptor.io_service().run();
 
     m_receiver_ready.store(true);
 
@@ -335,10 +347,10 @@ namespace dunedaq::cibmodules {
       {
         break ;
       }
-      else
-      {
-        TLOG() << "Waiting for a bit longer";
-      }
+//      else
+//      {
+//        TLOG() << "Waiting for a bit longer";
+//      }
     }
 
     TLOG() << get_name() <<  ": Connection received: start reading" << std::endl;
@@ -743,6 +755,24 @@ namespace dunedaq::cibmodules {
 
     ci.add(module_info);
   }
+
+  bool CIBModule::check_port_in_use(unsigned short port)
+  {
+    using namespace boost::asio;
+    using ip::tcp;
+
+    io_service svc;
+    tcp::acceptor a(svc);
+
+    boost::system::error_code ec;
+    a.open(tcp::v4(), ec) || a.bind({ tcp::v4(), port }, ec);
+    a.close();
+    return ec == error::address_in_use;
+
+  }
+
+
+
 
 } // namespace dunedaq::cibmodules
 
