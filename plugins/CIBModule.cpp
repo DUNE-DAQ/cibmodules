@@ -39,7 +39,7 @@ namespace dunedaq::cibmodules {
               : hsilibs::HSIEventSender(name)
                 , m_is_running(false)
                 , m_is_configured(false)
-                , m_error_state(false)
+//                , m_error_state(false)
                 , m_control_ios()
 //                , m_receiver_ios()
                 , m_control_socket(m_control_ios)
