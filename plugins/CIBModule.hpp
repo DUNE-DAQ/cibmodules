@@ -74,8 +74,6 @@ namespace dunedaq::cibmodules {
 
     bool check_port_in_use(unsigned short port);
 
-//    std::atomic<bool> m_error_state;
-
     boost::asio::io_service m_control_ios;
     boost::asio::ip::tcp::socket m_control_socket;
     boost::asio::ip::tcp::endpoint m_control_endpoint;
@@ -94,7 +92,6 @@ namespace dunedaq::cibmodules {
 
     // the CIB does not need reset, since the DAQ operation is
     // decoupled from the instrumentation operation
-//    void send_reset() ;
     void send_config(const std::string & config);
     bool send_message(const std::string & msg);
 

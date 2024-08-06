@@ -41,8 +41,8 @@ namespace dunedaq::cibmodules {
                 , m_is_configured(false)
                 , m_control_ios()
                 , m_control_socket(m_control_ios)
-//                , m_receiver_ios()
-//                , m_receiver_socket(m_receiver_ios)
+                , m_receiver_ios()
+                , m_receiver_socket(m_receiver_ios)
                 , m_thread_(std::bind(&CIBModule::do_hsi_work, this, std::placeholders::_1))
                 , m_run_trigger_counter(0)
                 , m_num_total_triggers(0)
@@ -52,8 +52,9 @@ namespace dunedaq::cibmodules {
                 , m_module_instance(0)
                 , m_trigger_bit(0)
                 , m_receiver_ready(false)
-                //                , m_error_state(false)
                 {
+    m_control_ios = boost::asio::io_service();
+    m_control_socket = boost::asio::ip::tcp::socket(m_control_ios);
     // we can infer the instance from the name
     TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Instantiating a cibmodule with argument [" << name << "]";
     register_command("conf", &CIBModule::do_configure);
@@ -332,11 +333,13 @@ namespace dunedaq::cibmodules {
       TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Will set up the listener on port " << port << std::endl;
     }
 
-    boost::asio::io_service receiver_ios;
-    boost::asio::ip::tcp::socket receiver_socket(receiver_ios);
-    boost::asio::io_service io_service;
-    boost::asio::ip::tcp::endpoint ep( boost::asio::ip::tcp::v4(),port );
-    boost::asio::ip::tcp::acceptor acceptor(io_service,ep);
+//    boost::asio::io_service receiver_ios;
+//    boost::asio::ip::tcp::socket receiver_socket(receiver_ios);
+//    boost::asio::io_service io_service;
+//    boost::asio::ip::tcp::endpoint ep( boost::asio::ip::tcp::v4(),port );
+//    boost::asio::ip::tcp::acceptor acceptor(io_service,ep);
+    boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(),port ));
+
     acceptor.listen(boost::asio::ip::tcp::socket::max_connections, ec);
     if (ec)
     {
@@ -350,7 +353,8 @@ namespace dunedaq::cibmodules {
       TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Waiting for an incoming connection on port " << port << std::endl;
     }
 
-    std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(receiver_socket,ec) ; } ) ;
+//    std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(receiver_socket,ec) ; } ) ;
+    std::future<void> accepting = async( std::launch::async, [&]{ acceptor.accept(m_receiver_socket,ec) ; } ) ;
     if (ec)
     {
       std::stringstream msg;
@@ -391,7 +395,7 @@ namespace dunedaq::cibmodules {
     {
       update_calibration_file();
 
-      if ( ! read(receiver_socket, tcp_packet ) )
+      if ( ! read(m_receiver_socket, tcp_packet ) )
       {
         connection_closed = true ;
         break;
@@ -514,23 +518,8 @@ namespace dunedaq::cibmodules {
     }
 
     boost::system::error_code closing_error;
-    // NFB: This was intended for a case when the CIB could have troubles fetching data and therefore could
-    //      pass an error state word. That functionality has been removed and therefore this error_state is
-    //      now obsolete
-    //    if ( m_error_state.load() )
-    //    {
-    //
-    //      receiver_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_send, closing_error);
-    //
-    //      if ( closing_error )
-    //      {
-    //        std::stringstream msg;
-    //        msg << "Error in shutdown " << closing_error.message();
-    //        ers::error(CIBCommunicationError(ERS_HERE,msg.str())) ;
-    //      }
-    //    }
 
-    receiver_socket.close(closing_error) ;
+    m_receiver_socket.close(closing_error) ;
 
     if ( closing_error )
     {
