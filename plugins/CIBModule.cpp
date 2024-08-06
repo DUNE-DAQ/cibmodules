@@ -53,8 +53,6 @@ namespace dunedaq::cibmodules {
                 , m_trigger_bit(0)
                 , m_receiver_ready(false)
                 {
-    m_control_ios = boost::asio::io_service();
-    m_control_socket = boost::asio::ip::tcp::socket(m_control_ios);
     // we can infer the instance from the name
     TLOG_DEBUG(TLVL_ENTER_EXIT_METHODS) << get_name() << ": Instantiating a cibmodule with argument [" << name << "]";
     register_command("conf", &CIBModule::do_configure);
