@@ -331,11 +331,6 @@ namespace dunedaq::cibmodules {
       TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Will set up the listener on port " << port << std::endl;
     }
 
-//    boost::asio::io_service receiver_ios;
-//    boost::asio::ip::tcp::socket receiver_socket(receiver_ios);
-//    boost::asio::io_service io_service;
-//    boost::asio::ip::tcp::endpoint ep( boost::asio::ip::tcp::v4(),port );
-//    boost::asio::ip::tcp::acceptor acceptor(io_service,ep);
     boost::asio::ip::tcp::acceptor acceptor(m_receiver_ios,boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(),port ));
 
     acceptor.listen(boost::asio::ip::tcp::socket::max_connections, ec);
@@ -622,12 +617,6 @@ namespace dunedaq::cibmodules {
 
   void CIBModule::send_config( const std::string & config ) {
 
-//    if ( m_is_configured.load() )
-//    {
-//      TLOG() << get_name() << ": Resetting before configuring" << std::endl;
-//      send_reset();
-//    }
-
     TLOG_DEBUG(TLVL_CIB_INFO) << get_name() << ": Sending config" << std::endl;
 
     // structure the message to have a common management structure
@@ -648,17 +637,6 @@ namespace dunedaq::cibmodules {
       throw CIBCommunicationError(ERS_HERE, "Unable to configure CIB");
     }
   }
-
-//  void CIBModule::send_reset()
-//  {
-//    // actually, we do not want to do this to the CIB
-//    // the reset should go through the slow control
-//
-//    TLOG_DEBUG(1) << get_name() << ": NOT Sending a reset" << std::endl;
-//
-//    return;
-//
-//  }
 
   bool CIBModule::send_message( const std::string & msg )
   {
