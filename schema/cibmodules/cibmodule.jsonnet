@@ -21,21 +21,13 @@ local cibmodule = {
      receiver: s.record("Receiver",  [
         s.field("timeout", self.uint8, 1000, doc="CIB Receiver Connection Timeout value (microseconds)"),
         s.field("host", self.string, "localhost"),
-        s.field("port", self.uint8, 8992),
+        s.field("port", self.uint8, 8991),
      ], doc="Calibration Interface Board Receiver Socket Configuration"),
     
     sockets: s.record("Sockets",  [
         s.field("receiver", self.receiver, self.receiver),
      ], doc="Calibration Interface Board Sockets Configuration"),
-    
-    timing: s.record("Timing",  [
-        s.field("address", self.string, "0xF0"),
-        s.field("group", self.string, "0x0"),
-        s.field("triggers", self.boolean, true),
-        s.field("lockout", self.string, "0x10"),
-    ], doc="Calibration Interface Board Timing Configuration"),
-  
-  
+
     misc: s.record("Misc",  [
         s.field("trigger_stream_enable", self.boolean, false, doc="Enable storing a separate dump of all triggers received from the CIB"),
         s.field("trigger_stream_output", self.string, "/nfs/sw/trigger/cib",doc="CIB Trigger Output Path"),
@@ -43,18 +35,17 @@ local cibmodule = {
     ], doc="Central Trigger Board Misc Configuration"),
     	
   
-    board_config: s.record("Board_config",  [
+    board_config: s.record("Config",  [
 			s.field("sockets", self.sockets, self.sockets),
-			s.field("timing", self.timing, self.timing),
 			s.field("misc", self.misc, self.misc),
         ], doc="Calibration Interface Board Configuration Wrapper"),
   
     
     conf: s.record("Conf", [
-    		s.field("cib_trigger_bit", self.trigger_bit_selector, default=0, doc="Associated trigger bit" ),
-    		s.field("cib_instance", self.int4, 0, doc="CIB instance"),
-	        s.field("cib_host", self.string, "np04-cib-1", doc="CIB Hostname"),
-	        s.field("cib_port", self.uint8, 8991, doc="CIB Connection Port"),
+    		s.field("cib_trigger_bit", self.trigger_bit_selector, default=25, doc="Associated trigger bit" ),
+    		s.field("cib_instance", self.uint4, 0, doc="CIB instance"),
+	        s.field("cib_host", self.string, "np04-iols-cib-01", doc="CIB Hostname"),
+	        s.field("cib_port", self.uint4, 8992, doc="CIB Connection Port"),
 	        s.field("board_config", self.board_config, self.board_config, doc="CIB board configuration"),
 		], doc="CIB DAQ Module Configuration"),
 };

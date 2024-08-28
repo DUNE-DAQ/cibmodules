@@ -143,8 +143,8 @@ def cli(
         console.log(f"Generating instance {i} of CIBModule app : {name}")
         the_system.apps[name] = cib_hsi_gen.get_cib_hsi_app(
             nickname = nickname, 
-            instance_id = i,
-            source_id = 0, # do we need this here?
+            instance_id= i,
+            source_id = i,
             conf = lconfs[i]
         )
 
