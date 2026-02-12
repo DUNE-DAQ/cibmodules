@@ -13,18 +13,13 @@
 #define CIBMODULES_PLUGINS_CIBMODULE_HPP_
 
 #include "appfwk/DAQModule.hpp"
-// FIXME: Implement this module
 #include "appmodel/CIBModule.hpp" 
 #include "iomanager/Receiver.hpp"
 #include "iomanager/Sender.hpp"
 #include "utilities/WorkerThread.hpp"
-
 #include "hsilibs/HSIEventSender.hpp"
 
-// FIXME: Implement this structure
 #include "cibmodules/opmon/CIBModule.pb.h"
-
-//#include "CTBPacketContent.hpp"
 
 #include <memory>
 #include <string>
@@ -37,14 +32,10 @@
 #include <boost/asio.hpp>
 #include <boost/array.hpp>
 
-// #include <atomic>
-// #include <limits>
-// #include <string>
-
 namespace dunedaq::cibmodules {
 
   // NFB: Do we need this?
-  typedef std::pair<uint64_t, uint64_t> ts_payload; // NOLINT
+  // typedef std::pair<uint64_t, uint64_t> ts_payload; // NOLINT
 
   class CIBModule : public dunedaq::hsilibs::HSIEventSender
   {
@@ -58,7 +49,6 @@ namespace dunedaq::cibmodules {
     ~CIBModule();
 
     void init(std::shared_ptr<appfwk::ConfigurationManager> cfgMgr) override;
-    // void init(const nlohmann::json& iniobj) override;
 
     /**
      * Disallow copy and move constructors and assignments
@@ -70,8 +60,6 @@ namespace dunedaq::cibmodules {
 
 
     bool error_state() const { return m_error_state.load(); }
-//    bool ErrorState() const { return m_error_state.load() ; }
-    // void get_info(opmonlib::InfoCollector& ci, int level) override;
 
   protected:
     void generate_opmon_data() override;
@@ -128,18 +116,12 @@ namespace dunedaq::cibmodules {
       uint16_t m_crate; // NOLINT
       uint16_t m_slot;  // NOLINT
 
-      // Generate HSI Frame/Event
-      // void send_matched_trigger_word(const content::word::trigger_t &, uint64_t); // NOLINT
-      // void match_between_buffers(std::queue<content::word::trigger_t> &, std::queue<ts_payload> &, uint64_t, content::word::word_type); // NOLINT
-      // static bool check_repeated_word(ts_payload &, ts_payload &, uint64_t); // NOLINT
-
       template <typename T>
       bool read(boost::asio::ip::tcp::socket &socket, T &obj);
 
       //
       // members related to calibration stream
       //
-
       void update_calibration_file();
       void init_calibration_file();
       bool set_calibration_stream(const std::string &prefix = "");
@@ -152,12 +134,6 @@ namespace dunedaq::cibmodules {
       std::chrono::steady_clock::time_point m_last_calibration_file_update;
 
       //
-      // Other auxiliary members
-      //
-
-      bool parse_hex(std::string_view s, std::uint32_t &out);
-
-      //
       // metric utilities
       //
       // -- these have to match the protobuf definition in CIBModuleInfo.proto
@@ -167,11 +143,6 @@ namespace dunedaq::cibmodules {
       using message_counter_t = std::remove_const<const_message_counter_t>::type;
       std::atomic<message_counter_t> m_num_control_messages_sent = 0;
       std::atomic<message_counter_t> m_num_control_responses_received = 0;
-
-      // using message_status_t = std::invoke_result<decltype(&general_metric_t::hardware_running), general_metric_t>::type;
-
-      // std::atomic<std::remove_const<message_status_t>::type> m_is_running = false;
-      // std::atomic<std::remove_const<message_status_t>::type> m_is_configured = false;
 
       using const_total_trigger_counter_t = std::invoke_result<decltype(&general_metric_t::num_total_triggers_received), general_metric_t>::type;
       std::atomic<std::remove_const<const_total_trigger_counter_t>::type> m_num_total_triggers_received;
@@ -183,7 +154,7 @@ namespace dunedaq::cibmodules {
       //
       // monitoring data/information
       //
-      std::deque<uint> m_buffer_counts; // NOLINT(build/unsigned)
+      std::deque<uint> m_buffer_counts;          // NOLINT(build/unsigned)
       std::shared_mutex m_buffer_counts_mutex;
       void update_buffer_counts(uint new_count); // NOLINT(build/unsigned)
       double read_average_buffer_counts();
