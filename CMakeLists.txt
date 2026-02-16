@@ -1,12 +1,6 @@
-
-
-# This is a skeleton CMakeLists.txt file, auto-generated on
-# Mon Mar 25 21:46:48 UTC 2024.  The developer(s) of this package should delete
-# this comment as well as adding dependent targets, packages,
-# etc. specific to the package. For details on how to write a package,
-# please see
-# https://dune-daq-sw.readthedocs.io/en/latest/packages/daq-cmake/
-
+#
+# CIBmodules package: dune-daq interface for the Calibration Interface Board
+#
 cmake_minimum_required(VERSION 3.12)
 project(cibmodules VERSION 2.0.0)
 
@@ -33,4 +27,3 @@ daq_add_library( *.cpp LINK_LIBRARIES
 daq_add_plugin(CIBModule duneDAQModule            LINK_LIBRARIES cibmodules )
 
 daq_install()
-
