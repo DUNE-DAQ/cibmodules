@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package dunedaq.cibmodules.opmon;
+
+// this has to match the CIBModuleInfo in CIBModule.hpp
+message CIBModuleInfo 
+{
+
+  // board comunication
+  uint32 num_control_messages_sent = 1; // Number of control messages sent to CIB
+  uint32 num_control_responses_received = 2; // Number of control message responses received from CIB
+
+  // board status
+  bool hardware_running = 5;  
+  bool hardware_configured = 6;
+
+  uint32 num_total_triggers_received = 10; // Total trigger count since module was lauched.
+  uint32 num_run_triggers_received = 12; // Trigger count for the current run.
+
+  // HSI interface
+  uint32 sent_hsi_events_counter = 15; // Number of HSI events sent so far
+  uint32 failed_to_send_hsi_events_counter = 16; // Number of failed send attempts so far
+
+  // CIB related properties
+  double average_buffer_occupancy = 21; // Average (word) occupancy of buffer in CIB firmware.
+
+ 
+} 
+
+// //  Message specific for every HLT and LLT enabled
+// message TriggerInfo 
+// {
+//   uint64 count = 1;
+// }
