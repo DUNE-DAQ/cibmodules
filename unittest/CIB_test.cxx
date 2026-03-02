@@ -12,9 +12,9 @@
 
 #include "cib_utilities.h"
 
-#include <cstdint>
-
 #include "boost/test/unit_test.hpp"
+
+#include <cstdint>
 
 BOOST_AUTO_TEST_SUITE(CIB_test)
 
@@ -31,9 +31,13 @@ BOOST_AUTO_TEST_CASE(CastToSignedHandlesPositiveAndNegative)
 {
   constexpr std::uint32_t m1_mask = dunedaq::cib::daq::iols_trigger_t::bitmask_m1;
 
-  BOOST_REQUIRE_EQUAL(dunedaq::cibmodules::util::cast_to_signed(0x000123U, m1_mask), 0x123);
+  BOOST_REQUIRE_EQUAL(
+    dunedaq::cibmodules::util::cast_to_signed(0x000123U, m1_mask),
+    0x123);
   BOOST_REQUIRE_EQUAL(dunedaq::cibmodules::util::cast_to_signed(0x3FFFFFU, m1_mask), -1);
-  BOOST_REQUIRE_EQUAL(dunedaq::cibmodules::util::cast_to_signed(0x200001U, m1_mask), -2097151);
+  BOOST_REQUIRE_EQUAL(
+    dunedaq::cibmodules::util::cast_to_signed(0x200001U, m1_mask),
+    -2097151);
 }
 
 BOOST_AUTO_TEST_CASE(GetMHelpersDecodeTriggerFields)

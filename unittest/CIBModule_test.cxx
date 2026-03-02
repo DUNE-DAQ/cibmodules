@@ -8,19 +8,22 @@
 
 #include "appfwk/DAQModule.hpp"
 #include "appmodel/CIBModule.hpp"
+#include "cibmodules/opmon/CIBModule.pb.h"
+#include "hsilibs/HSIEventSender.hpp"
 #include "iomanager/Receiver.hpp"
 #include "iomanager/Sender.hpp"
 #include "utilities/WorkerThread.hpp"
-#include "hsilibs/HSIEventSender.hpp"
-#include "cibmodules/opmon/CIBModule.pb.h"
 
 #include <boost/asio.hpp>
 #include <boost/test/unit_test.hpp>
 
-#include <functional>
-#include <filesystem>
-#include <future>
 #include <nlohmann/json.hpp>
+
+#include <array>
+#include <cstdint>
+#include <filesystem>
+#include <functional>
+#include <future>
 #include <string>
 #include <thread>
 
@@ -68,7 +71,8 @@ run_with_mock_control_server(dunedaq::cibmodules::CIBModule& module,
     socket.close();
   });
 
-  module.m_control_socket.connect({ boost::asio::ip::make_address("127.0.0.1"), port_future.get() });
+  module.m_control_socket.connect(
+    { boost::asio::ip::make_address("127.0.0.1"), port_future.get() });
   client_action();
   module.m_control_socket.close();
 
@@ -96,13 +100,14 @@ run_with_connected_pair(ServerAction&& server_action, ClientAction&& client_acti
 
   boost::asio::io_service client_io_service;
   boost::asio::ip::tcp::socket client_socket(client_io_service);
-  client_socket.connect({ boost::asio::ip::make_address("127.0.0.1"), port_future.get() });
+  client_socket.connect(
+    { boost::asio::ip::make_address("127.0.0.1"), port_future.get() });
   client_action(client_socket);
 
   server_thread.join();
 }
 
-} // namespace
+}  // namespace ""
 
 BOOST_AUTO_TEST_SUITE(CIBModule_test)
 
@@ -170,10 +175,13 @@ BOOST_AUTO_TEST_CASE(SendMessageParsesFeedbackAndTracksCounters)
 {
   dunedaq::cibmodules::CIBModule module("cibmodule_unit_test");
 
-  const std::string reply = R"({"feedback":[{"type":"warning","message":"warn"},{"type":"info","message":"ok"},{"type":"misc","message":"blob"}]})";
+  const std::string reply =
+    R"({"feedback":[{"type":"warning","message":"warn"},{"type":"info","message":"ok"},{"type":"misc","message":"blob"}]})";
   bool ret = false;
 
-  const auto request = run_with_mock_control_server(module, reply, [&]() { ret = module.send_message("{\"command\":\"ping\"}"); });
+  const auto request = run_with_mock_control_server(module, reply, [&]() {
+    ret = module.send_message("{\"command\":\"ping\"}");
+  });
 
   BOOST_REQUIRE(ret);
   BOOST_REQUIRE(request.find("\"command\":\"ping\"") != std::string::npos);
@@ -188,7 +196,9 @@ BOOST_AUTO_TEST_CASE(SendMessageReturnsFalseOnErrorFeedback)
   const std::string reply = R"({"feedback":[{"type":"ERROR","message":"failure"}]})";
   bool ret = true;
 
-  run_with_mock_control_server(module, reply, [&]() { ret = module.send_message("{\"command\":\"stop\"}"); });
+  run_with_mock_control_server(module, reply, [&]() {
+    ret = module.send_message("{\"command\":\"stop\"}");
+  });
 
   BOOST_REQUIRE(!ret);
   BOOST_REQUIRE_EQUAL(module.m_num_control_messages_sent.load(), 1);
@@ -200,7 +210,9 @@ BOOST_AUTO_TEST_CASE(SendConfigWrapsConfigPayload)
   dunedaq::cibmodules::CIBModule module("cibmodule_unit_test");
 
   const std::string reply = R"({"feedback":[{"type":"info","message":"configured"}]})";
-  const auto request = run_with_mock_control_server(module, reply, [&]() { module.send_config("{\"receiver\":\"host\",\"port\":1234}"); });
+  const auto request = run_with_mock_control_server(module, reply, [&]() {
+    module.send_config("{\"receiver\":\"host\",\"port\":1234}");
+  });
 
   const auto sent_json = nlohmann::json::parse(request);
   BOOST_REQUIRE_EQUAL(sent_json["command"].get<std::string>(), "config");
