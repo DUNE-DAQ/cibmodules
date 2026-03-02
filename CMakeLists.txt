@@ -30,5 +30,6 @@ daq_add_plugin(CIBModule duneDAQModule            LINK_LIBRARIES cibmodules )
 
 # timinglibs::dal is needed to avoid a link error; it can be removed once timinglibs #155 is addressed
 daq_add_unit_test(CIB_test LINK_LIBRARIES cibmodules timinglibs::dal)
+daq_add_unit_test(CIBModule_test LINK_LIBRARIES cibmodules timinglibs::dal)
 
 daq_install()
