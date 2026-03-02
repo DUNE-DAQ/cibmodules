@@ -18,6 +18,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include <functional>
+#include <filesystem>
 #include <future>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -259,6 +260,30 @@ BOOST_AUTO_TEST_CASE(InitCalibrationFileDisablesStreamOnOpenFailure)
   module.init_calibration_file();
 
   BOOST_REQUIRE(!module.m_calibration_stream_enable);
+}
+
+BOOST_AUTO_TEST_CASE(InitAndRotateCalibrationFileOnWritablePath)
+{
+  namespace fs = std::filesystem;
+  dunedaq::cibmodules::CIBModule module("cibmodule_unit_test");
+
+  const fs::path temp_dir = fs::temp_directory_path() / "cibmodule_cov_tests";
+  fs::create_directories(temp_dir);
+
+  module.m_calibration_stream_enable = true;
+  module.m_calibration_dir = temp_dir.string();
+  module.m_calibration_prefix = "run10_";
+
+  module.init_calibration_file();
+  BOOST_REQUIRE(module.m_calibration_stream_enable);
+  BOOST_REQUIRE(module.m_calibration_file.is_open());
+
+  module.m_calibration_file_interval = std::chrono::minutes(0);
+  module.update_calibration_file();
+  BOOST_REQUIRE(module.m_calibration_file.is_open());
+
+  module.m_calibration_file.close();
+  fs::remove_all(temp_dir);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
